@@ -1,0 +1,6 @@
+.git/
+dist/
+build/
+.next/
+*.lock
+package-lock.json
