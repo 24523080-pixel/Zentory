@@ -70,8 +70,12 @@ export function StockOpnameClient({ role }: Props) {
   const [freezeModal, setFreezeModal]             = useState(false)
   const [newArea, setNewArea]                     = useState(AREA_OPTIONS[0])
   const [submitModal, setSubmitModal]             = useState(false)
-  const [showVarianceWarning, setShowVarianceWarning] = useState(false)
-  const [variancePct, setVariancePct]             = useState(0)
+  const [showOTPModal,        setShowOTPModal]        = useState(false)
+  const [showOTPSetupWarning, setShowOTPSetupWarning] = useState(false)
+  const [variancePct,         setVariancePct]         = useState(0)
+  const [otpCode,             setOtpCode]             = useState('')
+  const [otpError,            setOtpError]            = useState('')
+  const [otpLoading,          setOtpLoading]          = useState(false)
 
   const selected = sessions.find((s) => s.id === selectedId)
 
@@ -247,24 +251,47 @@ export function StockOpnameClient({ role }: Props) {
     ? itemsWithVariance.filter((i) => i.stokFisikResolved === null).length
     : 0
 
-  async function handleApprove(confirmed = false) {
+  async function handleApprove() {
     const res = await fetch(`/api/stock-opname/${selectedId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', confirmed }),
+      body: JSON.stringify({ action: 'approve' }),
     })
     if (res.status === 409) {
       const d = await res.json()
-      if (d.requiresConfirmation) {
-        setVariancePct(d.variancePct)
-        setShowVarianceWarning(true)
-        return
-      }
+      setVariancePct(d.variancePct ?? 0)
+      if (d.requiresOTP) { setShowOTPModal(true); return }
+      if (d.requiresOTPSetup) { setShowOTPSetupWarning(true); return }
     }
     if (res.ok) {
       const updated: StockOpname = await res.json()
       setSessions(prev => prev.map(s => s.id === selectedId ? updated : s))
       setView('list')
+    }
+  }
+
+  async function submitOTP() {
+    setOtpError('')
+    if (otpCode.length !== 6) { setOtpError('Kode harus 6 digit.'); return }
+    setOtpLoading(true)
+    try {
+      const res = await fetch(`/api/stock-opname/${selectedId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', otp: otpCode }),
+      })
+      if (res.ok) {
+        const updated: StockOpname = await res.json()
+        setSessions(prev => prev.map(s => s.id === selectedId ? updated : s))
+        setShowOTPModal(false)
+        setOtpCode('')
+        setView('list')
+      } else {
+        const d = await res.json()
+        setOtpError(d.message ?? 'Kode tidak valid.')
+      }
+    } finally {
+      setOtpLoading(false)
     }
   }
 
@@ -443,37 +470,74 @@ export function StockOpnameClient({ role }: Props) {
         )}
       </div>
 
-      {/* Modal peringatan selisih besar (NFR-002) */}
-      {showVarianceWarning && (
+      {/* Modal OTP 2FA (NFR-002 — selisih > 10%) */}
+      {showOTPModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setShowVarianceWarning(false)} />
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => { setShowOTPModal(false); setOtpCode(''); setOtpError('') }} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <button type="button" onClick={() => setShowVarianceWarning(false)} className="absolute right-4 top-4 text-muted-foreground hover:text-foreground">
+            <button type="button" onClick={() => { setShowOTPModal(false); setOtpCode(''); setOtpError('') }} className="absolute right-4 top-4 text-muted-foreground hover:text-foreground">
               <X className="size-4" />
             </button>
             <div className="mb-4 flex justify-center">
-              <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
-                <AlertTriangle className="size-6 text-destructive" />
+              <span className="flex size-12 items-center justify-center rounded-full bg-primary/10">
+                <Snowflake className="size-6 text-primary" />
               </span>
             </div>
-            <h2 className="text-center text-base font-semibold">Perhatian: Selisih Besar</h2>
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              Selisih stok mencapai{' '}
-              <span className="font-semibold text-destructive">{variancePct}%</span>{' '}
-              dari nilai inventaris, melebihi ambang batas 10% (NFR-002).
-              Konfirmasi otorisasi Manager diperlukan untuk melanjutkan.
+            <h2 className="text-center text-base font-semibold">Verifikasi 2FA</h2>
+            <p className="mt-1 text-center text-xs text-muted-foreground">
+              Selisih stok <span className="font-semibold text-destructive">{variancePct}%</span> melebihi batas 10%.
+              Masukkan kode dari Google Authenticator untuk melanjutkan.
             </p>
+            <div className="mt-4">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                value={otpCode}
+                onChange={e => { setOtpCode(e.target.value.replace(/\D/g, '')); setOtpError('') }}
+                className="w-full rounded-lg border border-input bg-background px-4 py-3 text-center text-2xl font-mono font-semibold tracking-[0.5em] outline-none focus:ring-2 focus:ring-ring"
+                autoFocus
+              />
+              {otpError && <p className="mt-2 text-center text-xs text-destructive">{otpError}</p>}
+            </div>
             <div className="mt-5 flex gap-2">
-              <button type="button" onClick={() => setShowVarianceWarning(false)}
+              <button type="button" onClick={() => { setShowOTPModal(false); setOtpCode(''); setOtpError('') }}
                 className="flex-1 rounded-lg border border-border py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
                 Batal
               </button>
-              <button
-                type="button"
-                onClick={() => { setShowVarianceWarning(false); handleApprove(true) }}
-                className="flex-1 rounded-lg bg-destructive py-2.5 text-sm font-medium text-white hover:bg-destructive/90"
-              >
-                Ya, Setujui Tetap
+              <button type="button" onClick={submitOTP} disabled={otpCode.length !== 6 || otpLoading}
+                className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {otpLoading ? 'Memverifikasi…' : 'Verifikasi & Setujui'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Google Authenticator belum di-setup */}
+      {showOTPSetupWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setShowOTPSetupWarning(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <button type="button" onClick={() => setShowOTPSetupWarning(false)} className="absolute right-4 top-4 text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+            <div className="mb-4 flex justify-center">
+              <span className="flex size-12 items-center justify-center rounded-full bg-chart-4/10">
+                <AlertTriangle className="size-6 text-chart-4" />
+              </span>
+            </div>
+            <h2 className="text-center text-base font-semibold">Google Authenticator Belum Aktif</h2>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Selisih stok <span className="font-semibold text-destructive">{variancePct}%</span> melebihi 10%.
+              Persetujuan ini memerlukan 2FA. Aktifkan Google Authenticator di{' '}
+              <a href="/dashboard/pengaturan" className="text-primary underline">Pengaturan → Profil</a> terlebih dahulu.
+            </p>
+            <div className="mt-5">
+              <button type="button" onClick={() => setShowOTPSetupWarning(false)}
+                className="w-full rounded-lg border border-border py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
+                Tutup
               </button>
             </div>
           </div>

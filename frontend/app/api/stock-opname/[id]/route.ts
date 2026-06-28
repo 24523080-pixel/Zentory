@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { authenticator } from 'otplib'
 import { prisma } from '@/lib/prisma'
 import { getSession, requireRole } from '@/lib/auth'
 
@@ -53,18 +54,46 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ message: 'Hanya Manager yang dapat menyetujui opname.' }, { status: 403 })
     }
 
-    // NFR-002: Periksa apakah selisih melebihi 10% nilai inventaris
-    if (!body.confirmed) {
-      const items = await prisma.stockOpnameItem.findMany({
-        where:   { opnameId: id, stokFisik: { not: null } },
-        include: { product: { select: { hargaBeli: true } } },
-      })
-      const totalInventory  = items.reduce((s, i) => s + i.stokSistem * (i.product?.hargaBeli ?? 0), 0)
-      const totalAdjustment = items.reduce((s, i) => s + Math.abs((i.stokFisik ?? 0) - i.stokSistem) * (i.product?.hargaBeli ?? 0), 0)
+    // NFR-002: Periksa selisih > 10% nilai inventaris → wajib OTP 2FA
+    const opnameItems = await prisma.stockOpnameItem.findMany({
+      where:   { opnameId: id, stokFisik: { not: null } },
+      include: { product: { select: { hargaBeli: true } } },
+    })
+    const totalInventory  = opnameItems.reduce((s, i) => s + i.stokSistem * (i.product?.hargaBeli ?? 0), 0)
+    const totalAdjustment = opnameItems.reduce((s, i) => s + Math.abs((i.stokFisik ?? 0) - i.stokSistem) * (i.product?.hargaBeli ?? 0), 0)
+    const isLargeVariance = totalInventory > 0 && totalAdjustment / totalInventory > 0.10
+    const variancePct     = isLargeVariance ? Math.round((totalAdjustment / totalInventory) * 100) : 0
 
-      if (totalInventory > 0 && totalAdjustment / totalInventory > 0.10) {
-        const variancePct = Math.round((totalAdjustment / totalInventory) * 100)
-        return NextResponse.json({ requiresConfirmation: true, variancePct }, { status: 409 })
+    if (isLargeVariance) {
+      const manager = await prisma.user.findUnique({
+        where:  { id: session.id },
+        select: { totpSecret: true },
+      })
+
+      if (!manager?.totpSecret) {
+        // Manager belum setup Google Authenticator
+        return NextResponse.json(
+          { requiresOTPSetup: true, variancePct },
+          { status: 409 }
+        )
+      }
+
+      const otp = body.otp ? String(body.otp) : null
+      if (!otp) {
+        // Minta OTP dari Manager
+        return NextResponse.json(
+          { requiresOTP: true, variancePct },
+          { status: 409 }
+        )
+      }
+
+      // Verifikasi kode OTP
+      const isValid = authenticator.verify({ token: otp, secret: manager.totpSecret })
+      if (!isValid) {
+        return NextResponse.json(
+          { message: 'Kode OTP tidak valid atau sudah kedaluwarsa. Coba lagi.' },
+          { status: 400 }
+        )
       }
     }
 

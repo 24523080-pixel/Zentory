@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { User, Store, Users, Eye, EyeOff, Check, X, Plus, KeyRound, Loader2 } from 'lucide-react'
+import { User, Store, Users, Eye, EyeOff, Check, X, Plus, KeyRound, Loader2, ShieldCheck, ShieldOff } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
@@ -252,7 +252,167 @@ function ProfilTab({ userName, userEmail, role }: { userName: string; userEmail:
           </div>
         </div>
       </div>
+
+      {/* 2FA — hanya untuk Manager */}
+      {role === 'manager' && <TwoFactorSection />}
     </div>
+  )
+}
+
+/* ─────────────── 2FA SECTION ─────────────── */
+
+function TwoFactorSection() {
+  const [isSetup,       setIsSetup]       = useState(false)
+  const [loadingStatus, setLoadingStatus] = useState(true)
+  const [showModal,     setShowModal]     = useState(false)
+  const [qrDataUrl,     setQrDataUrl]     = useState('')
+  const [pendingSecret, setPendingSecret] = useState('')
+  const [setupCode,     setSetupCode]     = useState('')
+  const [setupError,    setSetupError]    = useState('')
+  const [setupLoading,  setSetupLoading]  = useState(false)
+  const [setupDone,     setSetupDone]     = useState(false)
+  const [disabling,     setDisabling]     = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/totp')
+      .then(r => r.ok ? r.json() : { isSetup: false })
+      .then(d => setIsSetup(d.isSetup))
+      .catch(() => {})
+      .finally(() => setLoadingStatus(false))
+  }, [])
+
+  async function openSetup() {
+    setSetupError(''); setSetupCode(''); setSetupDone(false)
+    const res = await fetch('/api/auth/totp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'generate' }),
+    })
+    if (res.ok) {
+      const d = await res.json()
+      setQrDataUrl(d.qrDataUrl)
+      setPendingSecret(d.secret)
+      setShowModal(true)
+    }
+  }
+
+  async function confirmSetup() {
+    setSetupError('')
+    if (setupCode.length !== 6) { setSetupError('Masukkan 6 digit kode.'); return }
+    setSetupLoading(true)
+    try {
+      const res = await fetch('/api/auth/totp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'activate', secret: pendingSecret, code: setupCode }),
+      })
+      const d = await res.json()
+      if (res.ok) {
+        setIsSetup(true); setSetupDone(true)
+        setTimeout(() => { setShowModal(false); setSetupCode('') }, 1800)
+      } else {
+        setSetupError(d.message ?? 'Kode tidak valid.')
+      }
+    } finally { setSetupLoading(false) }
+  }
+
+  async function disableTOTP() {
+    if (!confirm('Nonaktifkan Google Authenticator? Anda tidak akan bisa menyetujui adjustment stok besar tanpa 2FA.')) return
+    setDisabling(true)
+    try {
+      const res = await fetch('/api/auth/totp', { method: 'DELETE' })
+      if (res.ok) setIsSetup(false)
+    } finally { setDisabling(false) }
+  }
+
+  if (loadingStatus) return null
+
+  return (
+    <>
+      <div className="rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">Autentikasi Dua Faktor (2FA)</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Wajib untuk menyetujui penyesuaian stok &gt; 10% nilai inventaris (NFR-002).
+            </p>
+          </div>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+            isSetup ? 'bg-chart-3/15 text-chart-3' : 'bg-muted text-muted-foreground'
+          }`}>
+            {isSetup
+              ? <><ShieldCheck className="size-3" /> Aktif</>
+              : <><ShieldOff className="size-3" /> Nonaktif</>}
+          </span>
+        </div>
+        <div className="mt-4 flex justify-end">
+          {isSetup ? (
+            <Button size="sm" variant="outline" onClick={disableTOTP} disabled={disabling}
+              className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive">
+              {disabling ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldOff className="size-3.5" />}
+              Nonaktifkan
+            </Button>
+          ) : (
+            <Button size="sm" onClick={openSetup} className="gap-2">
+              <ShieldCheck className="size-3.5" />
+              Setup Google Authenticator
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <button type="button" onClick={() => setShowModal(false)} className="absolute right-4 top-4 text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+            <h3 className="mb-4 text-center text-base font-semibold">Setup Google Authenticator</h3>
+            {!setupDone ? (
+              <>
+                <ol className="mb-4 space-y-1.5 text-xs text-muted-foreground list-decimal list-inside">
+                  <li>Buka aplikasi <span className="font-medium text-foreground">Google Authenticator</span> di HP.</li>
+                  <li>Tap <span className="font-medium text-foreground">"+"</span> → pilih <span className="font-medium text-foreground">"Scan QR code"</span>.</li>
+                  <li>Scan kode QR di bawah ini.</li>
+                  <li>Masukkan kode 6 digit yang muncul.</li>
+                </ol>
+                {qrDataUrl && (
+                  <div className="mb-4 flex justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={qrDataUrl} alt="QR Code 2FA" className="size-48 rounded-lg border border-border" />
+                  </div>
+                )}
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={setupCode}
+                  onChange={e => { setSetupCode(e.target.value.replace(/\D/g, '')); setSetupError('') }}
+                  className="w-full rounded-lg border border-input bg-background px-4 py-3 text-center text-2xl font-mono font-semibold tracking-[0.5em] outline-none focus:ring-2 focus:ring-ring"
+                />
+                {setupError && <p className="mt-2 text-center text-xs text-destructive">{setupError}</p>}
+                <Button className="mt-4 w-full gap-2" onClick={confirmSetup} disabled={setupCode.length !== 6 || setupLoading}>
+                  {setupLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                  Aktifkan 2FA
+                </Button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <span className="flex size-14 items-center justify-center rounded-full bg-chart-3/15">
+                  <ShieldCheck className="size-7 text-chart-3" />
+                </span>
+                <p className="text-sm font-semibold text-chart-3">Google Authenticator Aktif!</p>
+                <p className="text-center text-xs text-muted-foreground">
+                  2FA berhasil dikonfigurasi. Kode OTP akan diminta saat menyetujui adjustment stok besar.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
