@@ -12,14 +12,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (action === 'submit') {
     // Admin submit hitungan fisik → Menunggu Approval
-    const counts = body.counts as Record<string, number>
+    const counts = body.counts as Record<string, string | number>
     await Promise.all(
-      Object.entries(counts).map(([itemId, stokFisik]) =>
-        prisma.stockOpnameItem.update({
+      Object.entries(counts).map(([itemId, raw]) => {
+        const stokFisik = parseInt(String(raw), 10)
+        if (isNaN(stokFisik)) return Promise.resolve()
+        return prisma.stockOpnameItem.update({
           where: { id: itemId },
-          data:  { stokFisik, selisih: undefined },
+          data:  { stokFisik },
         })
-      )
+      })
     )
     // Update selisih setelah semua input
     const items = await prisma.stockOpnameItem.findMany({ where: { opnameId: id } })

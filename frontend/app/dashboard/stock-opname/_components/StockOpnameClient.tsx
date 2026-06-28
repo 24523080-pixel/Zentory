@@ -282,6 +282,9 @@ export function StockOpnameClient({ role }: Props) {
       setSessions(prev => prev.map(s => s.id === selectedId ? updated : s))
       setSubmitModal(false)
       setView('list')
+    } else {
+      const err = await res.text()
+      alert(`Gagal submit opname (${res.status}): ${err}`)
     }
   }
 
