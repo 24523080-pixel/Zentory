@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticator } from 'otplib'
 import { prisma } from '@/lib/prisma'
 import { getSession, requireRole } from '@/lib/auth'
+import { verifyTOTP } from '@/lib/totp'
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -88,7 +88,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       }
 
       // Verifikasi kode OTP
-      const isValid = authenticator.verify({ token: otp, secret: manager.totpSecret })
+      const isValid = verifyTOTP(otp, manager.totpSecret)
       if (!isValid) {
         return NextResponse.json(
           { message: 'Kode OTP tidak valid atau sudah kedaluwarsa. Coba lagi.' },
