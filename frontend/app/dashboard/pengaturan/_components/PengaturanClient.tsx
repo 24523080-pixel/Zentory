@@ -312,18 +312,22 @@ function TwoFactorSection() {
     if (setupCode.length !== 6) { setSetupError('Masukkan 6 digit kode.'); return }
     setSetupLoading(true)
     try {
-      const res = await fetch('/api/auth/totp', {
+      const res  = await fetch('/api/auth/totp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'activate', secret: pendingSecret, code: setupCode }),
       })
-      const d = await res.json()
-      if (res.ok) {
+      const text = await res.text()
+      let d: { message?: string; success?: boolean } = {}
+      try { d = JSON.parse(text) } catch { /* server returned non-JSON (e.g. DB column belum ada) */ }
+      if (res.ok && d.success) {
         setIsSetup(true); setSetupDone(true)
         setTimeout(() => { setShowModal(false); setSetupCode('') }, 1800)
       } else {
-        setSetupError(d.message ?? 'Kode tidak valid.')
+        setSetupError(d.message ?? `Gagal menyimpan (${res.status}). Pastikan DB sudah di-migrate (db push).`)
       }
+    } catch {
+      setSetupError('Tidak dapat terhubung ke server.')
     } finally { setSetupLoading(false) }
   }
 
