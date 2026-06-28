@@ -6,6 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: ['otplib', 'qrcode'],
 }
 
 export default nextConfig
