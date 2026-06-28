@@ -89,6 +89,9 @@ export function POManager({ role = 'admin' }: { role?: string }) {
     try {
       const res = await fetch('/api/purchase-orders')
       if (res.ok) setOrders(await res.json())
+      else console.error('GET /api/purchase-orders failed:', res.status, await res.text())
+    } catch (err) {
+      console.error('loadOrders error:', err)
     } finally {
       setLoading(false)
     }
@@ -187,6 +190,10 @@ export function POManager({ role = 'admin' }: { role?: string }) {
         setOrders(prev => [created, ...prev])
         setSaved(true)
         setTimeout(closeModal, 900)
+      } else {
+        const err = await res.text()
+        console.error('POST /api/purchase-orders failed:', res.status, err)
+        alert(`Gagal menyimpan PO (${res.status}): ${err}`)
       }
     } finally {
       setSaving(false)
