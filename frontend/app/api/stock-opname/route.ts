@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/auth'
+import { getSession, requireRole } from '@/lib/auth'
 
 function nextNoOpname(existing: { noOpname: string }[]): string {
   const nums = existing.map(p => parseInt(p.noOpname.split('-')[2] ?? '0', 10)).filter(n => !isNaN(n))
@@ -19,6 +19,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  if (!requireRole(session, 'manager', 'admin')) {
+    return NextResponse.json({ message: 'Hanya Manager atau Admin yang dapat membuat stock opname.' }, { status: 403 })
+  }
 
   const body    = await req.json()
   const all     = await prisma.stockOpname.findMany({ select: { noOpname: true } })

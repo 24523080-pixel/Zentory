@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession } from '@/lib/auth'
+import { getSession, requireRole } from '@/lib/auth'
 
 function nextNoPenerimaan(existing: { noPenerimaan: string }[]): string {
   const nums = existing.map(p => parseInt(p.noPenerimaan.split('-')[2] ?? '0', 10)).filter(n => !isNaN(n))
@@ -19,6 +19,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  if (!requireRole(session, 'manager', 'admin')) {
+    return NextResponse.json({ message: 'Hanya Manager atau Admin yang dapat mencatat penerimaan barang.' }, { status: 403 })
+  }
 
   const body = await req.json()
   const all  = await prisma.penerimaan.findMany({ select: { noPenerimaan: true } })

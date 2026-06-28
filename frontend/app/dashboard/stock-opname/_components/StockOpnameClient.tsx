@@ -67,9 +67,11 @@ export function StockOpnameClient({ role }: Props) {
   const [view, setView]             = useState<'list' | 'detail'>('list')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [counts, setCounts]         = useState<Record<string, string>>({})
-  const [freezeModal, setFreezeModal] = useState(false)
-  const [newArea, setNewArea]       = useState(AREA_OPTIONS[0])
-  const [submitModal, setSubmitModal] = useState(false)
+  const [freezeModal, setFreezeModal]             = useState(false)
+  const [newArea, setNewArea]                     = useState(AREA_OPTIONS[0])
+  const [submitModal, setSubmitModal]             = useState(false)
+  const [showVarianceWarning, setShowVarianceWarning] = useState(false)
+  const [variancePct, setVariancePct]             = useState(0)
 
   const selected = sessions.find((s) => s.id === selectedId)
 
@@ -245,12 +247,20 @@ export function StockOpnameClient({ role }: Props) {
     ? itemsWithVariance.filter((i) => i.stokFisikResolved === null).length
     : 0
 
-  async function handleApprove() {
+  async function handleApprove(confirmed = false) {
     const res = await fetch(`/api/stock-opname/${selectedId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'approve' }),
+      body: JSON.stringify({ action: 'approve', confirmed }),
     })
+    if (res.status === 409) {
+      const d = await res.json()
+      if (d.requiresConfirmation) {
+        setVariancePct(d.variancePct)
+        setShowVarianceWarning(true)
+        return
+      }
+    }
     if (res.ok) {
       const updated: StockOpname = await res.json()
       setSessions(prev => prev.map(s => s.id === selectedId ? updated : s))
@@ -432,6 +442,43 @@ export function StockOpnameClient({ role }: Props) {
           </div>
         )}
       </div>
+
+      {/* Modal peringatan selisih besar (NFR-002) */}
+      {showVarianceWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setShowVarianceWarning(false)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl">
+            <button type="button" onClick={() => setShowVarianceWarning(false)} className="absolute right-4 top-4 text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+            <div className="mb-4 flex justify-center">
+              <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
+                <AlertTriangle className="size-6 text-destructive" />
+              </span>
+            </div>
+            <h2 className="text-center text-base font-semibold">Perhatian: Selisih Besar</h2>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Selisih stok mencapai{' '}
+              <span className="font-semibold text-destructive">{variancePct}%</span>{' '}
+              dari nilai inventaris, melebihi ambang batas 10% (NFR-002).
+              Konfirmasi otorisasi Manager diperlukan untuk melanjutkan.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => setShowVarianceWarning(false)}
+                className="flex-1 rounded-lg border border-border py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowVarianceWarning(false); handleApprove(true) }}
+                className="flex-1 rounded-lg bg-destructive py-2.5 text-sm font-medium text-white hover:bg-destructive/90"
+              >
+                Ya, Setujui Tetap
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal konfirmasi submit */}
       {submitModal && (
