@@ -242,9 +242,11 @@ export function SalesReturnClient({ role }: Props) {
   const totalRefund      = returns.filter((r) => r.status === 'Disetujui').reduce((s, r) => s + totalReturn(r), 0)
 
   function handleCreate(noTrx: string, items: ReturnItem[]) {
+    const nums   = returns.map(r => parseInt(r.noReturn.split('-')[2] ?? '0', 10)).filter(n => !isNaN(n))
+    const next   = Math.max(0, ...nums) + 1
     const newReturn: SalesReturn = {
       id:          `sr-new-${Date.now()}`,
-      noReturn:    `RTN-2026-${String(returns.length + 13).padStart(3, '0')}`,
+      noReturn:    `RTN-${new Date().getFullYear()}-${String(next).padStart(3, '0')}`,
       noTransaksi: noTrx,
       tanggal:     new Date().toISOString(),
       kasir:       'Anda',

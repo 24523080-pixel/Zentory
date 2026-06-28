@@ -7,6 +7,15 @@ import {
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { OPNAME_LIST, AREA_OPTIONS, type StockOpname, type OpnameStatus } from '../_data'
+import { PRODUCTS } from '../../inventaris/_data'
+
+const AREA_TO_KATEGORI: Record<string, string[]> = {
+  'Area Minuman': ['Minuman'],
+  'Area Kemasan': ['Kemasan'],
+  'Area Bumbu':   ['Bumbu'],
+  'Area Snack':   ['Makanan'],
+  'Semua Area':   ['Minuman', 'Makanan', 'Kemasan', 'Bumbu', 'Lainnya'],
+}
 
 const STATUS_BADGE: Record<OpnameStatus, string> = {
   'Berlangsung':       'bg-blue-50 text-blue-600',
@@ -37,6 +46,36 @@ export function StockOpnameClient({ role }: Props) {
   const [submitModal, setSubmitModal] = useState(false)
 
   const selected = sessions.find((s) => s.id === selectedId)
+
+  function startOpname() {
+    const kats    = AREA_TO_KATEGORI[newArea] ?? []
+    const prods   = newArea === 'Semua Area'
+      ? PRODUCTS
+      : PRODUCTS.filter(p => kats.includes(p.kategori))
+    const maxNum  = Math.max(0, ...sessions.map(s => parseInt(s.noOpname.split('-')[2] ?? '0', 10)))
+    const noOpname = `OPN-${new Date().getFullYear()}-${String(maxNum + 1).padStart(3, '0')}`
+    const newSession: StockOpname = {
+      id:          `op-${Date.now()}`,
+      noOpname,
+      area:        newArea,
+      mulai:       new Date().toISOString().slice(0, 16),
+      status:      'Berlangsung',
+      dibuatOleh:  'Admin Staff',
+      items:       prods.map(p => ({
+        productId:   String(p.id),
+        productName: p.name,
+        sku:         p.sku,
+        stokSistem:  p.stok,
+        stokFisik:   null,
+        harga:       0,
+      })),
+    }
+    setSessions(prev => [newSession, ...prev])
+    setSelectedId(newSession.id)
+    setCounts({})
+    setFreezeModal(false)
+    setView('detail')
+  }
 
   // ── List view ──────────────────────────────────────────────────────────────
 
@@ -157,7 +196,7 @@ export function StockOpnameClient({ role }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFreezeModal(false)}
+                  onClick={startOpname}
                   className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
                 >
                   Freeze & Mulai
@@ -197,21 +236,21 @@ export function StockOpnameClient({ role }: Props) {
 
   function handleApprove() {
     setSessions((prev) => prev.map((s) =>
-      s.id === selected.id ? { ...s, status: 'Disetujui' } : s
+      s.id === selectedId ? { ...s, status: 'Disetujui' } : s
     ))
     setView('list')
   }
 
   function handleReject() {
     setSessions((prev) => prev.map((s) =>
-      s.id === selected.id ? { ...s, status: 'Ditolak' } : s
+      s.id === selectedId ? { ...s, status: 'Ditolak' } : s
     ))
     setView('list')
   }
 
   function handleSubmit() {
     setSessions((prev) => prev.map((s) =>
-      s.id === selected.id ? { ...s, status: 'Menunggu Approval' } : s
+      s.id === selectedId ? { ...s, status: 'Menunggu Approval', selesai: new Date().toISOString().slice(0, 16) } : s
     ))
     setSubmitModal(false)
     setView('list')
