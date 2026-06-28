@@ -1,46 +1,55 @@
-import { CheckCircle2, Clock, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
+import { Package, AlertTriangle, ClipboardList, TrendingUp, TrendingDown } from 'lucide-react'
+import { prisma } from '@/lib/prisma'
 
-const CARDS = [
-  {
-    title: 'Akurasi Stok',
-    value: '96.4%',
-    delta: '+1.2%',
-    deltaUp: true,
-    sub: 'vs. bulan lalu',
-    icon: CheckCircle2,
-    accent: 'text-chart-3',
-    glow: 'bg-chart-3/10',
-  },
-  {
-    title: 'Rata-rata Update',
-    value: '1 mnt 47 dtk',
-    delta: '-13 dtk',
-    deltaUp: true,
-    sub: 'lebih cepat dari target',
-    icon: Clock,
-    accent: 'text-primary',
-    glow: 'bg-primary/10',
-  },
-  {
-    title: 'Stockout Rate',
-    value: '3 kejadian',
-    delta: '-2',
-    deltaUp: true,
-    sub: 'vs. bulan lalu',
-    icon: AlertTriangle,
-    accent: 'text-chart-4',
-    glow: 'bg-chart-4/10',
-  },
-]
+export async function StatCards() {
+  let totalProducts = 0, belowROPCount = 0, pendingPOs = 0
+  try {
+    const [products, pos] = await Promise.all([
+      prisma.product.findMany({ select: { stok: true, rop: true } }),
+      prisma.purchaseOrder.count({ where: { status: { in: ['Draft', 'Dikirim'] } } }),
+    ])
+    totalProducts  = products.length
+    belowROPCount  = products.filter(p => p.stok <= p.rop).length
+    pendingPOs     = pos
+  } catch {}
 
-export function StatCards() {
+  const CARDS = [
+    {
+      title:   'Total Produk',
+      value:   String(totalProducts),
+      delta:   'produk terdaftar',
+      deltaUp: true,
+      sub:     'di inventaris',
+      icon:    Package,
+      accent:  'text-primary',
+      glow:    'bg-primary/10',
+    },
+    {
+      title:   'Produk ≤ ROP',
+      value:   `${belowROPCount} produk`,
+      delta:   belowROPCount > 0 ? 'Perlu restock' : 'Semua aman',
+      deltaUp: belowROPCount === 0,
+      sub:     'stok di bawah reorder point',
+      icon:    AlertTriangle,
+      accent:  belowROPCount > 0 ? 'text-chart-4' : 'text-chart-3',
+      glow:    belowROPCount > 0 ? 'bg-chart-4/10' : 'bg-chart-3/10',
+    },
+    {
+      title:   'PO Aktif',
+      value:   `${pendingPOs} PO`,
+      delta:   pendingPOs > 0 ? 'Menunggu proses' : 'Tidak ada PO aktif',
+      deltaUp: pendingPOs === 0,
+      sub:     'Draft + Dikirim',
+      icon:    ClipboardList,
+      accent:  'text-chart-4',
+      glow:    'bg-chart-4/10',
+    },
+  ]
+
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       {CARDS.map((card) => (
-        <div
-          key={card.title}
-          className="relative overflow-hidden rounded-xl border border-border bg-card p-5 shadow-xs"
-        >
+        <div key={card.title} className="relative overflow-hidden rounded-xl border border-border bg-card p-5 shadow-xs">
           <div className={`pointer-events-none absolute right-4 top-4 size-10 rounded-full ${card.glow} blur-xl`} />
           <div className="mb-3 flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">{card.title}</span>
