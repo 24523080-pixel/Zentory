@@ -265,11 +265,12 @@ function TwoFactorSection() {
   const [isSetup,       setIsSetup]       = useState(false)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [showModal,     setShowModal]     = useState(false)
-  const [qrDataUrl,     setQrDataUrl]     = useState('')
+  const [qrSvg,         setQrSvg]         = useState('')
   const [pendingSecret, setPendingSecret] = useState('')
   const [setupCode,     setSetupCode]     = useState('')
   const [setupError,    setSetupError]    = useState('')
   const [setupLoading,  setSetupLoading]  = useState(false)
+  const [generatingQR,  setGeneratingQR]  = useState(false)
   const [setupDone,     setSetupDone]     = useState(false)
   const [disabling,     setDisabling]     = useState(false)
 
@@ -283,16 +284,26 @@ function TwoFactorSection() {
 
   async function openSetup() {
     setSetupError(''); setSetupCode(''); setSetupDone(false)
-    const res = await fetch('/api/auth/totp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'generate' }),
-    })
-    if (res.ok) {
+    setGeneratingQR(true)
+    try {
+      const res = await fetch('/api/auth/totp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate' }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setSetupError(d.message ?? 'Gagal generate QR. Coba lagi.')
+        return
+      }
       const d = await res.json()
-      setQrDataUrl(d.qrDataUrl)
+      setQrSvg(d.qrSvg)
       setPendingSecret(d.secret)
       setShowModal(true)
+    } catch {
+      setSetupError('Tidak dapat terhubung ke server. Periksa koneksi.')
+    } finally {
+      setGeneratingQR(false)
     }
   }
 
@@ -353,10 +364,13 @@ function TwoFactorSection() {
               Nonaktifkan
             </Button>
           ) : (
-            <Button size="sm" onClick={openSetup} className="gap-2">
-              <ShieldCheck className="size-3.5" />
-              Setup Google Authenticator
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button size="sm" onClick={openSetup} disabled={generatingQR} className="gap-2">
+                {generatingQR ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                Setup Google Authenticator
+              </Button>
+              {setupError && !showModal && <p className="text-xs text-destructive">{setupError}</p>}
+            </div>
           )}
         </div>
       </div>
@@ -377,11 +391,11 @@ function TwoFactorSection() {
                   <li>Scan kode QR di bawah ini.</li>
                   <li>Masukkan kode 6 digit yang muncul.</li>
                 </ol>
-                {qrDataUrl && (
-                  <div className="mb-4 flex justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={qrDataUrl} alt="QR Code 2FA" className="size-48 rounded-lg border border-border" />
-                  </div>
+                {qrSvg && (
+                  <div
+                    className="mb-4 flex justify-center [&_svg]:size-48 [&_svg]:rounded-lg [&_svg]:border [&_svg]:border-border [&_svg]:bg-white"
+                    dangerouslySetInnerHTML={{ __html: qrSvg }}
+                  />
                 )}
                 <input
                   type="text"

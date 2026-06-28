@@ -26,9 +26,9 @@ export async function POST(req: NextRequest) {
 
   if (action === 'generate') {
     const newSecret = authenticator.generateSecret()
-    const otpauth  = authenticator.keyuri(session.email, 'Zentory', newSecret)
-    const qrDataUrl = await QRCode.toDataURL(otpauth, { width: 240, margin: 2 })
-    return NextResponse.json({ secret: newSecret, qrDataUrl })
+    const otpauth   = authenticator.keyuri(session.email, 'Zentory', newSecret)
+    const qrSvg     = await QRCode.toString(otpauth, { type: 'svg', width: 240, margin: 2 })
+    return NextResponse.json({ secret: newSecret, qrSvg })
   }
 
   if (action === 'activate') {
