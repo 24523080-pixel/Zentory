@@ -1,15 +1,21 @@
 'use client'
 
-import { useState, useMemo, Fragment } from 'react'
+import { useState, useMemo, Fragment, useCallback, useEffect } from 'react'
 import {
   Search, ChevronLeft, ChevronRight,
   ChevronDown, ChevronUp, X, ScanBarcode,
-  Plus, Minus, PackageCheck,
+  Plus, Minus, PackageCheck, Loader2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { PENERIMAAN_LIST, type StatusPenerimaan, type Penerimaan, type ItemPenerimaan } from '../_data'
 
-const STATUS_BADGE: Record<StatusPenerimaan, string> = {
+type StatusPenerimaan = 'Menunggu' | 'Diterima' | 'Ada Selisih'
+interface ItemPenerimaan { sku: string; productName: string; qtyPO: number; qtyDiterima: number }
+interface Penerimaan {
+  id: string; noPenerimaan: string; noPO: string; supplier: string
+  tanggal: string; status: string; catatan?: string | null; items: ItemPenerimaan[]
+}
+
+const STATUS_BADGE: Record<string, string> = {
   Menunggu:     'bg-muted text-muted-foreground',
   Diterima:     'bg-chart-3/15 text-chart-3',
   'Ada Selisih':'bg-destructive/15 text-destructive',
@@ -24,12 +30,6 @@ function formatTanggal(iso: string) {
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function nextNoPenerimaan(list: Penerimaan[]): string {
-  const nums = list.map(p => parseInt(p.noPenerimaan.split('-')[2] ?? '0', 10)).filter(n => !isNaN(n))
-  const next = Math.max(0, ...nums) + 1
-  return `PEN-${new Date().getFullYear()}-${String(next).padStart(3, '0')}`
-}
-
 interface ItemRow extends ItemPenerimaan { _key: number }
 
 function emptyItemRow(key: number): ItemRow {
@@ -37,7 +37,20 @@ function emptyItemRow(key: number): ItemRow {
 }
 
 export function PenerimaanTable() {
-  const [list, setList]         = useState<Penerimaan[]>(PENERIMAAN_LIST)
+  const [list, setList]         = useState<Penerimaan[]>([])
+  const [loading, setLoading]   = useState(true)
+
+  const loadList = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/penerimaan')
+      if (res.ok) setList(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadList() }, [loadList])
   const [query, setQuery]       = useState('')
   const [tab, setTab]           = useState('Semua')
   const [page, setPage]         = useState(1)
@@ -116,26 +129,27 @@ export function PenerimaanTable() {
     return hasSelisih ? 'Ada Selisih' : 'Diterima'
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!validate()) return
-    const items: ItemPenerimaan[] = formItems.map(({ _key, ...rest }) => ({
+    const items = formItems.map(({ _key, ...rest }) => ({
       ...rest,
       qtyPO:       Number(rest.qtyPO),
       qtyDiterima: Number(rest.qtyDiterima),
     }))
-    const newEntry: Penerimaan = {
-      id:           `pen-new-${Date.now()}`,
-      noPenerimaan: nextNoPenerimaan(list),
-      noPO:         formNoPO.trim(),
-      supplier:     formSupplier.trim(),
-      tanggal:      new Date().toISOString().slice(0, 10),
-      status:       computeStatus(items),
-      items,
-      catatan:      formCatatan.trim() || undefined,
+    const res = await fetch('/api/penerimaan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        noPO: formNoPO.trim(), supplier: formSupplier.trim(),
+        catatan: formCatatan.trim() || null, items,
+      }),
+    })
+    if (res.ok) {
+      const created: Penerimaan = await res.json()
+      setList(prev => [created, ...prev])
+      setSaved(true)
+      setTimeout(() => setModalOpen(false), 900)
     }
-    setList(prev => [newEntry, ...prev])
-    setSaved(true)
-    setTimeout(() => setModalOpen(false), 900)
   }
 
   return (
@@ -197,7 +211,13 @@ export function PenerimaanTable() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center">
+                    <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />
+                  </td>
+                </tr>
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     Tidak ada data penerimaan yang cocok.

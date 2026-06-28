@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Enums ──────────────────────────────────────────────────────
+
+enum Role {
+  manager
+  admin
+  kasir
+}
+
+enum POStatus {
+  Draft
+  Dikirim
+  Diterima
+  Dibatalkan
+}
+
+enum Klasifikasi {
+  Fast
+  Slow
+  Dead
+  InsufficientData
+}
+
+// ── Models ─────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         Role
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  createdPOs   PurchaseOrder[] @relation("CreatedBy")
+  approvedPOs  PurchaseOrder[] @relation("ApprovedBy")
+  salesReturns SalesReturn[]
+  opnames      StockOpname[]   @relation("OpnameCreatedBy")
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  sku         String      @unique
+  name        String
+  kategori    String
+  hargaBeli   Float       @default(0)
+  hargaJual   Float       @default(0)
+  stok        Int         @default(0)
+  rop         Int         @default(0)
+  klasifikasi Klasifikasi @default(InsufficientData)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  opnameItems StockOpnameItem[]
+  returnItems ReturnItem[]
+}
+
+model PurchaseOrder {
+  id           String    @id @default(cuid())
+  noPO         String    @unique
+  supplier     String
+  tanggal      DateTime
+  status       POStatus  @default(Draft)
+  createdById  String?
+  createdBy    User?     @relation("CreatedBy", fields: [createdById], references: [id])
+  approvedById String?
+  approvedBy   User?     @relation("ApprovedBy", fields: [approvedById], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  items        POItem[]
+  penerimaan   Penerimaan[]
+}
+
+model POItem {
+  id          String        @id @default(cuid())
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  productName String
+  sku         String
+  qty         Int
+  hargaSatuan Float
+}
+
+model Penerimaan {
+  id           String        @id @default(cuid())
+  noPenerimaan String        @unique
+  noPO         String
+  poId         String?
+  po           PurchaseOrder? @relation(fields: [poId], references: [id])
+  supplier     String
+  tanggal      DateTime      @default(now())
+  status       String
+  catatan      String?
+  createdAt    DateTime      @default(now())
+
+  items        PenerimaanItem[]
+}
+
+model PenerimaanItem {
+  id           String     @id @default(cuid())
+  penerimaanId String
+  penerimaan   Penerimaan @relation(fields: [penerimaanId], references: [id], onDelete: Cascade)
+  sku          String
+  productName  String
+  qtyPO        Int
+  qtyDiterima  Int
+}
+
+model StockOpname {
+  id             String    @id @default(cuid())
+  noOpname       String    @unique
+  area           String
+  tanggalMulai   DateTime  @default(now())
+  tanggalSelesai DateTime?
+  status         String
+  createdById    String?
+  createdBy      User?     @relation("OpnameCreatedBy", fields: [createdById], references: [id])
+  approvedById   String?
+  approvedByName String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  items          StockOpnameItem[]
+}
+
+model StockOpnameItem {
+  id          String      @id @default(cuid())
+  opnameId    String
+  opname      StockOpname @relation(fields: [opnameId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product?    @relation(fields: [productId], references: [id])
+  sku         String
+  productName String
+  stokSistem  Int
+  stokFisik   Int?
+  selisih     Int?
+}
+
+model SalesReturn {
+  id              String    @id @default(cuid())
+  noReturn        String    @unique
+  noTransaksi     String
+  tanggal         DateTime  @default(now())
+  kasirId         String?
+  kasir           User?     @relation(fields: [kasirId], references: [id])
+  kasirName       String?
+  status          String
+  inspeksiOleh    String?
+  disetujuiOleh   String?
+  catatanInspeksi String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  items           ReturnItem[]
+}
+
+model ReturnItem {
+  id          String       @id @default(cuid())
+  returnId    String
+  return      SalesReturn  @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product?     @relation(fields: [productId], references: [id])
+  productName String
+  sku         String
+  harga       Float
+  qty         Int
+  alasan      String
+  catatan     String?
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  targetRole String
+  title      String
+  message    String
+  type       String
+  link       String?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}

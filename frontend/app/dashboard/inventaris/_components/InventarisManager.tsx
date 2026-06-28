@@ -1,15 +1,46 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Package, AlertTriangle, TrendingDown, PlusCircle,
-  Search, Edit2, Trash2, X, ChevronLeft, ChevronRight, Save, Check, Info,
+  Search, Edit2, Trash2, X, ChevronLeft, ChevronRight, Save, Check, Info, Loader2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { PRODUCTS, type Product, type Status, type Klasifikasi } from '../_data'
 
-// ── Constants ────────────────────────────────────────────────
-const KATEGORIS = ['Minuman', 'Makanan', 'Kemasan', 'Bumbu', 'Lainnya']
+// ── Types ────────────────────────────────────────────────────
+type Klasifikasi = 'Fast' | 'Slow' | 'Dead' | 'InsufficientData'
+type Status      = 'Tersedia' | 'Reorder' | 'Kritis'
+
+interface Product {
+  id:          string
+  sku:         string
+  name:        string
+  kategori:    string
+  hargaBeli:   number
+  hargaJual:   number
+  stok:        number
+  rop:         number
+  klasifikasi: Klasifikasi
+}
+
+interface FormData {
+  name:      string
+  sku:       string
+  kategori:  string
+  hargaBeli: string
+  hargaJual: string
+  stok:      string
+  rop:       string
+}
+
+type ModalState =
+  | { type: 'add' }
+  | { type: 'edit';   product: Product }
+  | { type: 'delete'; product: Product }
+  | null
+
+// ── Constants ─────────────────────────────────────────────────
+const KATEGORIS = ['Minuman', 'Makanan', 'Kemasan', 'Bumbu', 'Lainnya', 'Snack', 'Herbal', 'Sembako', 'Kecantikan', 'Kesehatan']
 const TABS      = ['Semua', 'Fast', 'Slow', 'Dead', 'Kritis'] as const
 const PAGE_SIZE = 8
 
@@ -18,40 +49,27 @@ const STATUS_BADGE: Record<Status, string> = {
   Reorder:  'bg-chart-4/15 text-chart-4',
   Kritis:   'bg-destructive/15 text-destructive',
 }
-const KLAS_BADGE: Record<Klasifikasi, string> = {
-  Fast:               'bg-primary/10 text-primary',
-  Slow:               'bg-chart-4/10 text-chart-4',
-  Dead:               'bg-muted text-muted-foreground',
-  'Insufficient Data':'bg-muted/50 text-muted-foreground/70',
+const KLAS_BADGE: Record<string, string> = {
+  Fast:              'bg-primary/10 text-primary',
+  Slow:              'bg-chart-4/10 text-chart-4',
+  Dead:              'bg-muted text-muted-foreground',
+  InsufficientData:  'bg-muted/50 text-muted-foreground/70',
+}
+const KLAS_LABEL: Record<string, string> = {
+  Fast: 'Fast', Slow: 'Slow', Dead: 'Dead', InsufficientData: 'Insufficient Data',
 }
 
-// ── Helpers ──────────────────────────────────────────────────
+const EMPTY_FORM: FormData = {
+  name: '', sku: '', kategori: 'Minuman', hargaBeli: '', hargaJual: '', stok: '', rop: '',
+}
+
+// ── Helpers ───────────────────────────────────────────────────
 function deriveStatus(stok: number, rop: number): Status {
   if (stok <= Math.floor(rop * 0.5)) return 'Kritis'
   if (stok <= rop)                   return 'Reorder'
   return 'Tersedia'
 }
 
-// ── Types ────────────────────────────────────────────────────
-type ModalState =
-  | { type: 'add' }
-  | { type: 'edit';   product: Product }
-  | { type: 'delete'; product: Product }
-  | null
-
-interface FormData {
-  name:     string
-  sku:      string
-  kategori: string
-  stok:     string
-  rop:      string
-}
-
-const EMPTY_FORM: FormData = {
-  name: '', sku: '', kategori: 'Minuman', stok: '', rop: '',
-}
-
-// ── Sub-components ───────────────────────────────────────────
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -64,26 +82,43 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 
 // ── Main export ───────────────────────────────────────────────
 export function InventarisManager() {
-  const [products, setProducts] = useState<Product[]>(PRODUCTS)
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading]   = useState(true)
   const [modal, setModal]       = useState<ModalState>(null)
   const [form, setForm]         = useState<FormData>(EMPTY_FORM)
   const [errors, setErrors]     = useState<Partial<Record<keyof FormData, string>>>({})
   const [saved, setSaved]       = useState(false)
+  const [saving, setSaving]     = useState(false)
   const [query, setQuery]       = useState('')
   const [tab, setTab]           = useState('Semua')
   const [page, setPage]         = useState(1)
 
+  // ── Fetch ──────────────────────────────────────────────────
+  const loadProducts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/products')
+      if (res.ok) setProducts(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadProducts() }, [loadProducts])
+
   // ── Derived summary ────────────────────────────────────────
-  const totalSKU     = products.length
   const totalStok    = products.reduce((s, p) => s + p.stok, 0)
-  const perluReorder = products.filter(p => p.status === 'Reorder' || p.status === 'Kritis').length
-  const deadStock    = products.filter(p => p.klasifikasi === 'Dead').length
+  const perluReorder = products.filter(p => {
+    const st = deriveStatus(p.stok, p.rop)
+    return st === 'Reorder' || st === 'Kritis'
+  }).length
+  const deadStock = products.filter(p => p.klasifikasi === 'Dead').length
 
   const SUMMARY = [
-    { label: 'Total SKU',     value: String(totalSKU),                  icon: Package,       accent: 'text-primary',    glow: 'bg-primary/10'    },
-    { label: 'Total Stok',    value: totalStok.toLocaleString('id-ID'), icon: Package,       accent: 'text-chart-3',    glow: 'bg-chart-3/10'    },
-    { label: 'Perlu Reorder', value: `${perluReorder} SKU`,             icon: AlertTriangle, accent: 'text-chart-4',    glow: 'bg-chart-4/10'    },
-    { label: 'Dead Stock',    value: `${deadStock} SKU`,                icon: TrendingDown,  accent: 'text-destructive', glow: 'bg-destructive/10'},
+    { label: 'Total SKU',     value: String(products.length),             icon: Package,       accent: 'text-primary',     glow: 'bg-primary/10'     },
+    { label: 'Total Stok',    value: totalStok.toLocaleString('id-ID'),   icon: Package,       accent: 'text-chart-3',     glow: 'bg-chart-3/10'     },
+    { label: 'Perlu Reorder', value: `${perluReorder} SKU`,               icon: AlertTriangle, accent: 'text-chart-4',     glow: 'bg-chart-4/10'     },
+    { label: 'Dead Stock',    value: `${deadStock} SKU`,                  icon: TrendingDown,  accent: 'text-destructive',  glow: 'bg-destructive/10' },
   ]
 
   // ── Filter & paginate ──────────────────────────────────────
@@ -91,7 +126,8 @@ export function InventarisManager() {
     const q = query.toLowerCase()
     return products.filter(p => {
       const matchQ   = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
-      const matchTab = tab === 'Semua' || p.klasifikasi === tab || p.status === tab
+      const status   = deriveStatus(p.stok, p.rop)
+      const matchTab = tab === 'Semua' || p.klasifikasi === tab || status === tab
       return matchQ && matchTab
     })
   }, [products, query, tab])
@@ -106,7 +142,7 @@ export function InventarisManager() {
     setModal({ type: 'add' })
   }
   function openEdit(p: Product) {
-    setForm({ name: p.name, sku: p.sku, kategori: p.kategori, stok: String(p.stok), rop: String(p.rop) })
+    setForm({ name: p.name, sku: p.sku, kategori: p.kategori, hargaBeli: String(p.hargaBeli), hargaJual: String(p.hargaJual), stok: String(p.stok), rop: String(p.rop) })
     setErrors({}); setSaved(false)
     setModal({ type: 'edit', product: p })
   }
@@ -134,37 +170,54 @@ export function InventarisManager() {
   }
 
   // ── Save ───────────────────────────────────────────────────
-  function handleSave() {
+  async function handleSave() {
     if (!validate()) return
-    const stok   = Number(form.stok)
-    const rop    = Number(form.rop)
-    const status = deriveStatus(stok, rop)
-
-    if (modal?.type === 'add') {
-      const next: Product = {
-        id: Date.now(), name: form.name.trim(),
-        sku: form.sku.trim().toUpperCase(), kategori: form.kategori,
-        stok, rop, status,
-        klasifikasi: 'Insufficient Data',
+    setSaving(true)
+    try {
+      if (modal?.type === 'add') {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sku: form.sku.trim().toUpperCase(), name: form.name.trim(),
+            kategori: form.kategori, hargaBeli: form.hargaBeli, hargaJual: form.hargaJual,
+            stok: form.stok, rop: form.rop,
+          }),
+        })
+        if (res.ok) {
+          const created: Product = await res.json()
+          setProducts(prev => [created, ...prev])
+        }
+      } else if (modal?.type === 'edit') {
+        const res = await fetch(`/api/products/${modal.product.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sku: modal.product.sku, name: form.name.trim(),
+            kategori: form.kategori, hargaBeli: form.hargaBeli, hargaJual: form.hargaJual,
+            stok: form.stok, rop: form.rop,
+          }),
+        })
+        if (res.ok) {
+          const updated: Product = await res.json()
+          setProducts(prev => prev.map(p => p.id === updated.id ? updated : p))
+        }
       }
-      setProducts(prev => [next, ...prev])
-    } else if (modal?.type === 'edit') {
-      setProducts(prev => prev.map(p =>
-        p.id === modal.product.id
-          ? { ...p, name: form.name.trim(), kategori: form.kategori, stok, rop, status }
-          : p
-      ))
+      setSaved(true)
+      setTimeout(closeModal, 900)
+    } finally {
+      setSaving(false)
     }
-
-    setSaved(true)
-    setTimeout(closeModal, 900)
   }
 
   // ── Delete ─────────────────────────────────────────────────
-  function handleDelete() {
+  async function handleDelete() {
     if (modal?.type !== 'delete') return
-    setProducts(prev => prev.filter(p => p.id !== modal.product.id))
-    closeModal()
+    const res = await fetch(`/api/products/${modal.product.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setProducts(prev => prev.filter(p => p.id !== modal.product.id))
+      closeModal()
+    }
   }
 
   const isFormModal = modal?.type === 'add' || modal?.type === 'edit'
@@ -233,45 +286,54 @@ export function InventarisManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {paginated.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    <Loader2 className="mx-auto size-5 animate-spin" />
+                  </td>
+                </tr>
+              ) : paginated.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     Tidak ada produk yang cocok.
                   </td>
                 </tr>
-              ) : paginated.map(row => (
-                <tr key={row.id} className="bg-card transition-colors hover:bg-muted/30">
-                  <td className="px-4 py-3.5">
-                    <p className="font-medium">{row.name}</p>
-                    <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{row.sku}</p>
-                  </td>
-                  <td className="px-4 py-3.5 text-muted-foreground">{row.kategori}</td>
-                  <td className="px-4 py-3.5 tabular-nums font-medium">{row.stok}</td>
-                  <td className="px-4 py-3.5 tabular-nums text-muted-foreground">{row.rop}</td>
-                  <td className="px-4 py-3.5">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[row.status]}`}>
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${KLAS_BADGE[row.klasifikasi]}`}>
-                      {row.klasifikasi}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => openEdit(row)} aria-label={`Edit ${row.name}`}
-                        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                        <Edit2 className="size-3.5" />
-                      </button>
-                      <button type="button" onClick={() => openDelete(row)} aria-label={`Hapus ${row.name}`}
-                        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              ) : paginated.map(row => {
+                const status = deriveStatus(row.stok, row.rop)
+                return (
+                  <tr key={row.id} className="bg-card transition-colors hover:bg-muted/30">
+                    <td className="px-4 py-3.5">
+                      <p className="font-medium">{row.name}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{row.sku}</p>
+                    </td>
+                    <td className="px-4 py-3.5 text-muted-foreground">{row.kategori}</td>
+                    <td className="px-4 py-3.5 tabular-nums font-medium">{row.stok}</td>
+                    <td className="px-4 py-3.5 tabular-nums text-muted-foreground">{row.rop}</td>
+                    <td className="px-4 py-3.5">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[status]}`}>
+                        {status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${KLAS_BADGE[row.klasifikasi]}`}>
+                        {KLAS_LABEL[row.klasifikasi]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => openEdit(row)} aria-label={`Edit ${row.name}`}
+                          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                          <Edit2 className="size-3.5" />
+                        </button>
+                        <button type="button" onClick={() => openDelete(row)} aria-label={`Hapus ${row.name}`}
+                          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -298,7 +360,6 @@ export function InventarisManager() {
           onClick={e => { if (e.target === e.currentTarget) closeModal() }}>
           <div className="flex w-full max-w-md flex-col rounded-xl border border-border bg-card shadow-2xl">
 
-            {/* Header */}
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <p className="text-sm font-semibold">
                 {modal?.type === 'add' ? 'Tambah Produk Baru' : `Edit: ${modal?.product.name}`}
@@ -309,9 +370,7 @@ export function InventarisManager() {
               </button>
             </div>
 
-            {/* Fields */}
             <div className="max-h-[65vh] space-y-4 overflow-y-auto p-5">
-
               <Field label="Nama Produk *" error={errors.name}>
                 <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="cth: Kopi Arabica 250g"
@@ -332,6 +391,17 @@ export function InventarisManager() {
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
+                <Field label="Harga Beli (Rp)">
+                  <Input type="number" min="0" value={form.hargaBeli}
+                    onChange={e => setForm(f => ({ ...f, hargaBeli: e.target.value }))} placeholder="0" />
+                </Field>
+                <Field label="Harga Jual (Rp)">
+                  <Input type="number" min="0" value={form.hargaJual}
+                    onChange={e => setForm(f => ({ ...f, hargaJual: e.target.value }))} placeholder="0" />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Stok Saat Ini *" error={errors.stok}>
                   <Input type="number" min="0" value={form.stok}
                     onChange={e => setForm(f => ({ ...f, stok: e.target.value }))}
@@ -344,25 +414,11 @@ export function InventarisManager() {
                 </Field>
               </div>
 
-              {/* Klasifikasi — read-only, ditentukan sistem */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Klasifikasi Stok</label>
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${KLAS_BADGE[modal?.type === 'edit' ? modal.product.klasifikasi : 'Insufficient Data']}`}>
-                    {modal?.type === 'edit' ? modal.product.klasifikasi : 'Insufficient Data'}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {modal?.type === 'edit' ? '(ditetapkan sistem)' : '(produk baru belum memiliki data penjualan)'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Info klasifikasi */}
               <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/30 px-3.5 py-2.5">
                 <Info className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Klasifikasi <span className="font-medium text-foreground">Fast / Slow / Dead Stock</span> ditetapkan
-                  otomatis oleh sistem berdasarkan historis penjualan — tidak dapat diubah secara manual.
+                  otomatis oleh sistem berdasarkan historis penjualan.
                 </p>
               </div>
 
@@ -376,17 +432,18 @@ export function InventarisManager() {
               )}
             </div>
 
-            {/* Footer */}
             <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
               <button type="button" onClick={closeModal}
                 className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors">
                 Batal
               </button>
-              <button type="button" onClick={handleSave}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+              <button type="button" onClick={handleSave} disabled={saving}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60">
                 {saved
                   ? <><Check className="size-4" /> Tersimpan!</>
-                  : <><Save className="size-4" /> Simpan</>
+                  : saving
+                    ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</>
+                    : <><Save className="size-4" /> Simpan</>
                 }
               </button>
             </div>

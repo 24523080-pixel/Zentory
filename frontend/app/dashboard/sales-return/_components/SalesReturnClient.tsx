@@ -1,18 +1,44 @@
 'use client'
 
-import { Fragment, useState } from 'react'
+import { Fragment, useState, useEffect, useCallback } from 'react'
 import {
   Plus, ChevronDown, ChevronUp,
   CheckCircle2, XCircle, RotateCcw, Trash2, X,
-  Search, ClipboardCheck, PackageCheck,
+  Search, ClipboardCheck, PackageCheck, Loader2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import {
-  RETURN_LIST, ALASAN_OPTIONS, totalReturn,
-  type SalesReturn, type ReturnStatus, type ReturnItem, type AlasanReturn,
-} from '../_data'
 
-const STATUS_BADGE: Record<ReturnStatus, string> = {
+type ReturnStatus = 'Menunggu Inspeksi' | 'Menunggu Approval' | 'Disetujui' | 'Ditolak'
+type AlasanReturn  = 'Produk Rusak' | 'Kadaluarsa' | 'Salah Item' | 'Kelebihan Qty' | 'Lainnya'
+const ALASAN_OPTIONS: AlasanReturn[] = ['Produk Rusak', 'Kadaluarsa', 'Salah Item', 'Kelebihan Qty', 'Lainnya']
+
+interface ReturnItem {
+  id?:         string
+  productName: string
+  sku:         string
+  harga:       number
+  qty:         number
+  alasan:      string
+  catatan?:    string | null
+}
+interface SalesReturn {
+  id:             string
+  noReturn:       string
+  noTransaksi:    string
+  tanggal:        string
+  kasirName?:     string | null
+  status:         string
+  inspeksiOleh?:  string | null
+  disetujuiOleh?: string | null
+  catatanInspeksi?: string | null
+  items:          ReturnItem[]
+}
+
+function totalReturn(ret: SalesReturn) {
+  return ret.items.reduce((s, i) => s + i.harga * i.qty, 0)
+}
+
+const STATUS_BADGE: Record<string, string> = {
   'Menunggu Inspeksi':  'bg-blue-50 text-blue-600',
   'Menunggu Approval':  'bg-chart-4/15 text-chart-4',
   'Disetujui':          'bg-chart-3/15 text-chart-3',
@@ -222,7 +248,18 @@ function InspeksiModal({
 interface Props { role: string }
 
 export function SalesReturnClient({ role }: Props) {
-  const [returns, setReturns]       = useState<SalesReturn[]>(RETURN_LIST)
+  const [returns, setReturns]       = useState<SalesReturn[]>([])
+  const [loading, setLoading]       = useState(true)
+
+  const loadReturns = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/sales-return')
+      if (res.ok) setReturns(await res.json())
+    } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { loadReturns() }, [loadReturns])
   const [filter, setFilter]         = useState<'Semua' | ReturnStatus>('Semua')
   const [expanded, setExpanded]     = useState<string | null>(null)
   const [newModal, setNewModal]     = useState(false)
@@ -242,44 +279,57 @@ export function SalesReturnClient({ role }: Props) {
   const disetujui        = returns.filter((r) => r.status === 'Disetujui').length
   const totalRefund      = returns.filter((r) => r.status === 'Disetujui').reduce((s, r) => s + totalReturn(r), 0)
 
-  function handleCreate(noTrx: string, items: ReturnItem[]) {
-    const nums   = returns.map(r => parseInt(r.noReturn.split('-')[2] ?? '0', 10)).filter(n => !isNaN(n))
-    const next   = Math.max(0, ...nums) + 1
-    const newReturn: SalesReturn = {
-      id:          `sr-new-${Date.now()}`,
-      noReturn:    `RTN-${new Date().getFullYear()}-${String(next).padStart(3, '0')}`,
-      noTransaksi: noTrx,
-      tanggal:     new Date().toISOString(),
-      kasir:       'Anda',
-      status:      'Menunggu Inspeksi',
-      items,
+  async function handleCreate(noTrx: string, items: ReturnItem[]) {
+    const res = await fetch('/api/sales-return', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ noTransaksi: noTrx, items }),
+    })
+    if (res.ok) {
+      const created: SalesReturn = await res.json()
+      setReturns(prev => [created, ...prev])
+      setNewModal(false)
     }
-    setReturns((prev) => [newReturn, ...prev])
-    setNewModal(false)
   }
 
-  function handleKirimKeManager(id: string, catatan: string) {
-    setReturns((prev) => prev.map((r) =>
-      r.id === id
-        ? { ...r, status: 'Menunggu Approval', inspeksiOleh: 'Admin', catatanInspeksi: catatan || 'Barang sudah diperiksa.' }
-        : r
-    ))
+  async function handleKirimKeManager(id: string, catatan: string) {
+    const res = await fetch(`/api/sales-return/${id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Menunggu Approval', catatan }),
+    })
+    if (res.ok) {
+      const updated: SalesReturn = await res.json()
+      setReturns(prev => prev.map(r => r.id === id ? updated : r))
+    }
     setInspeksiTarget(null)
   }
 
-  function handleApprove(id: string) {
+  async function handleApprove(id: string) {
     const target = returns.find(r => r.id === id)
-    setReturns((prev) => prev.map((r) =>
-      r.id === id ? { ...r, status: 'Disetujui', disetujuiOleh: 'Manager' } : r
-    ))
+    const res = await fetch(`/api/sales-return/${id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Disetujui' }),
+    })
+    if (res.ok) {
+      const updated: SalesReturn = await res.json()
+      setReturns(prev => prev.map(r => r.id === id ? updated : r))
+      if (target) setStokToast(target)
+    }
     setApproveId(null)
-    if (target) setStokToast(target)
   }
 
-  function handleReject(id: string) {
-    setReturns((prev) => prev.map((r) =>
-      r.id === id ? { ...r, status: 'Ditolak', disetujuiOleh: 'Manager' } : r
-    ))
+  async function handleReject(id: string) {
+    const res = await fetch(`/api/sales-return/${id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Ditolak' }),
+    })
+    if (res.ok) {
+      const updated: SalesReturn = await res.json()
+      setReturns(prev => prev.map(r => r.id === id ? updated : r))
+    }
     setRejectId(null)
   }
 
@@ -360,7 +410,9 @@ export function SalesReturnClient({ role }: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((ret) => (
+                {loading ? (
+                  <tr><td colSpan={8} className="px-5 py-10 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" /></td></tr>
+                ) : filtered.map((ret) => (
                   <Fragment key={ret.id}>
                     <tr className="cursor-pointer bg-card transition-colors hover:bg-muted/30"
                       onClick={() => setExpanded(expanded === ret.id ? null : ret.id)}>
@@ -370,7 +422,7 @@ export function SalesReturnClient({ role }: Props) {
                       <td className="px-5 py-3.5 font-mono text-xs font-medium">{ret.noReturn}</td>
                       <td className="px-5 py-3.5 font-mono text-xs text-muted-foreground">{ret.noTransaksi}</td>
                       <td className="px-5 py-3.5 text-xs text-muted-foreground">{formatTanggal(ret.tanggal)}</td>
-                      <td className="px-5 py-3.5 text-muted-foreground">{ret.kasir}</td>
+                      <td className="px-5 py-3.5 text-muted-foreground">{ret.kasirName ?? '—'}</td>
                       <td className="px-5 py-3.5 text-right tabular-nums font-medium">{formatRupiah(totalReturn(ret))}</td>
                       <td className="px-5 py-3.5">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[ret.status]}`}>
@@ -437,8 +489,8 @@ export function SalesReturnClient({ role }: Props) {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-border">
-                                {ret.items.map((item) => (
-                                  <tr key={item.productId} className="bg-card">
+                                {ret.items.map((item, i) => (
+                                  <tr key={item.id ?? i} className="bg-card">
                                     <td className="px-4 py-2.5">
                                       <p className="font-medium">{item.productName}</p>
                                       <p className="font-mono text-[10px] text-muted-foreground">{item.sku}</p>
@@ -560,8 +612,8 @@ export function SalesReturnClient({ role }: Props) {
               <p className="text-xs font-semibold text-chart-3">Stok dikembalikan ke inventaris</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{stokToast.noReturn} disetujui</p>
               <div className="mt-2 space-y-1">
-                {stokToast.items.map(item => (
-                  <div key={item.productId} className="flex items-center justify-between text-xs">
+                {stokToast.items.map((item, i) => (
+                  <div key={item.id ?? i} className="flex items-center justify-between text-xs">
                     <span className="truncate text-muted-foreground">{item.productName}</span>
                     <span className="ml-2 shrink-0 font-medium text-chart-3">+{item.qty} pcs</span>
                   </div>

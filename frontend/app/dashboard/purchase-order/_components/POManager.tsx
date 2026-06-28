@@ -1,13 +1,20 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   ClipboardList, Clock, PackageCheck, XCircle, PlusCircle,
   Search, Eye, Trash2, X, Save, Check, Plus, Minus,
-  ChevronLeft, ChevronRight, SendHorizonal, PackageOpen,
+  ChevronLeft, ChevronRight, SendHorizonal, PackageOpen, Loader2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { PURCHASE_ORDERS, totalNilai, type PurchaseOrder, type POStatus, type POItem } from '../_data'
+type POStatus = 'Draft' | 'Dikirim' | 'Diterima' | 'Dibatalkan'
+interface POItem { productName: string; sku: string; qty: number; hargaSatuan: number }
+interface PurchaseOrder {
+  id: string; noPO: string; supplier: string; tanggal: string; status: POStatus; items: POItem[]
+}
+function totalNilai(po: PurchaseOrder) {
+  return po.items.reduce((s, i) => s + i.qty * i.hargaSatuan, 0)
+}
 
 // ── Constants ─────────────────────────────────────────────────
 const SUPPLIERS = ['Supplier Maju Jaya', 'Sumber Makmur Dist.', 'Cahaya Ritel Indo', 'Indo Distributor']
@@ -26,12 +33,6 @@ function formatTanggal(iso: string) {
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 function today() { return new Date().toISOString().slice(0, 10) }
-
-function nextNoPO(orders: PurchaseOrder[]): string {
-  const nums = orders.map(po => parseInt(po.noPO.split('-')[2] ?? '0', 10)).filter(n => !isNaN(n))
-  const next = Math.max(0, ...nums) + 1
-  return `PO-${new Date().getFullYear()}-${String(next).padStart(3, '0')}`
-}
 
 // ── Types ─────────────────────────────────────────────────────
 type ModalState =
@@ -71,15 +72,29 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   const isManager = role === 'manager'
   const isAdmin   = role === 'admin'
 
-  const [orders, setOrders] = useState<PurchaseOrder[]>(PURCHASE_ORDERS)
+  const [orders, setOrders] = useState<PurchaseOrder[]>([])
+  const [loading, setLoading] = useState(true)
   const [modal, setModal]   = useState<ModalState>(null)
   const [form, setForm]     = useState<FormData>(newForm())
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saved, setSaved]   = useState(false)
+  const [saving, setSaving] = useState(false)
   const [query, setQuery]   = useState('')
   const [tab, setTab]       = useState('Semua')
   const [page, setPage]     = useState(1)
   const [keyCounter, setKeyCounter] = useState(1000)
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/purchase-orders')
+      if (res.ok) setOrders(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadOrders() }, [loadOrders])
 
   // ── Summary ──────────────────────────────────────────────────
   const total      = orders.length
@@ -154,38 +169,54 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   }
 
   // ── Create PO ─────────────────────────────────────────────────
-  function handleCreate() {
+  async function handleCreate() {
     if (!validate()) return
-    const noPO = nextNoPO(orders)
-    const newPO: PurchaseOrder = {
-      id:       `po-${Date.now()}`,
-      noPO,
-      supplier: form.supplier.trim(),
-      tanggal:  form.tanggal,
-      status:   'Draft',
-      items:    form.items.map(({ _key, ...rest }) => rest),
+    setSaving(true)
+    try {
+      const res = await fetch('/api/purchase-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplier: form.supplier.trim(),
+          tanggal:  form.tanggal,
+          items:    form.items.map(({ _key, ...rest }) => rest),
+        }),
+      })
+      if (res.ok) {
+        const created: PurchaseOrder = await res.json()
+        setOrders(prev => [created, ...prev])
+        setSaved(true)
+        setTimeout(closeModal, 900)
+      }
+    } finally {
+      setSaving(false)
     }
-    setOrders(prev => [newPO, ...prev])
-    setSaved(true)
-    setTimeout(closeModal, 900)
   }
 
   // ── Status transitions ────────────────────────────────────────
-  function kirimPO(id: string) {
-    setOrders(prev => prev.map(po => po.id === id ? { ...po, status: 'Dikirim' } : po))
+  async function updateStatus(id: string, status: POStatus) {
+    const res = await fetch(`/api/purchase-orders/${id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) {
+      const updated: PurchaseOrder = await res.json()
+      setOrders(prev => prev.map(po => po.id === id ? updated : po))
+    }
   }
-  function terimaPO(id: string) {
-    setOrders(prev => prev.map(po => po.id === id ? { ...po, status: 'Diterima' } : po))
-  }
-  function batalkanPO(id: string) {
-    setOrders(prev => prev.map(po => po.id === id ? { ...po, status: 'Dibatalkan' } : po))
-  }
+  const kirimPO    = (id: string) => updateStatus(id, 'Dikirim')
+  const terimaPO   = (id: string) => updateStatus(id, 'Diterima')
+  const batalkanPO = (id: string) => updateStatus(id, 'Dibatalkan')
 
   // ── Delete ────────────────────────────────────────────────────
-  function handleDelete() {
+  async function handleDelete() {
     if (modal?.type !== 'delete') return
-    setOrders(prev => prev.filter(po => po.id !== modal.po.id))
-    closeModal()
+    const res = await fetch(`/api/purchase-orders/${modal.po.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setOrders(prev => prev.filter(po => po.id !== modal.po.id))
+      closeModal()
+    }
   }
 
   // ── Form total ────────────────────────────────────────────────
@@ -263,6 +294,12 @@ export function POManager({ role = 'admin' }: { role?: string }) {
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     Tidak ada PO yang cocok.
+                  </td>
+                </tr>
+              ) : loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center">
+                    <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />
                   </td>
                 </tr>
               ) : paginated.map(po => (
@@ -451,11 +488,13 @@ export function POManager({ role = 'admin' }: { role?: string }) {
                   className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors">
                   Batal
                 </button>
-                <button type="button" onClick={handleCreate}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+                <button type="button" onClick={handleCreate} disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60">
                   {saved
                     ? <><Check className="size-4" /> Tersimpan!</>
-                    : <><Save className="size-4" /> Simpan Draft</>
+                    : saving
+                      ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</>
+                      : <><Save className="size-4" /> Simpan Draft</>
                   }
                 </button>
               </div>
