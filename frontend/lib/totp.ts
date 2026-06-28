@@ -9,16 +9,17 @@ export function generateSecret(): string {
 
 function base32Decode(str: string): Buffer {
   const s = str.replace(/=+$/, '').toUpperCase()
-  let bits = 0, value = 0
   const out: number[] = []
+  let buf = 0, bitsLeft = 0
   for (const ch of s) {
     const idx = ALPHABET.indexOf(ch)
     if (idx === -1) continue
-    value = (value << 5) | idx
-    bits += 5
-    if (bits >= 8) {
-      bits -= 8
-      out.push((value >>> bits) & 0xff)
+    buf = (buf << 5) | idx
+    bitsLeft += 5
+    if (bitsLeft >= 8) {
+      bitsLeft -= 8
+      out.push((buf >>> bitsLeft) & 0xff)
+      buf &= (1 << bitsLeft) - 1  // clear bits already flushed
     }
   }
   return Buffer.from(out)
