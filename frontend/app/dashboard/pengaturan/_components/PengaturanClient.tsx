@@ -1,15 +1,36 @@
 'use client'
 
-import { useState } from 'react'
-import { User, Store, Users, Eye, EyeOff, Check, X, Plus, KeyRound } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { User, Store, Users, Eye, EyeOff, Check, X, Plus, KeyRound, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { MOCK_USERS, MOCK_TOKO, type AppUser, type UserRole, type UserStatus } from '../_data'
+
+type UserRole   = 'manager' | 'admin' | 'kasir'
+type UserStatus = 'Aktif' | 'Nonaktif'
+
+interface AppUser {
+  id:        string
+  nama:      string
+  email:     string
+  role:      UserRole
+  status:    UserStatus
+  bergabung: string
+}
+
+const MOCK_TOKO = {
+  nama:        'Toko Segar Jaya',
+  alamat:      'Jl. Pasar Baru No. 12, Yogyakarta 55221',
+  telepon:     '0274-512345',
+  email:       'tokosegarjaya@gmail.com',
+  mataUang:   'IDR (Rp)',
+  formatAngka: '1.000,00',
+  zonaWaktu:  'WIB (UTC+7)',
+}
 
 type Tab = 'profil' | 'pengguna' | 'toko'
 
-const ROLE_LABEL: Record<UserRole, string>    = { manager: 'Manager', admin: 'Admin Staff', kasir: 'Kasir' }
-const ROLE_BADGE: Record<UserRole, string>    = {
+const ROLE_LABEL: Record<UserRole, string> = { manager: 'Manager', admin: 'Admin Staff', kasir: 'Kasir' }
+const ROLE_BADGE: Record<UserRole, string> = {
   manager: 'bg-primary/10 text-primary',
   admin:   'bg-chart-3/15 text-chart-3',
   kasir:   'bg-chart-4/15 text-chart-4',
@@ -20,25 +41,24 @@ const STATUS_BADGE: Record<UserStatus, string> = {
 }
 
 interface Props {
-  role:       string
-  userName:   string
-  userEmail:  string
+  role:      string
+  userName:  string
+  userEmail: string
 }
 
 export function PengaturanClient({ role, userName, userEmail }: Props) {
   const isManager = role === 'manager'
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'profil',    label: 'Profil & Akun',       icon: User  },
+    { id: 'profil',   label: 'Profil & Akun',       icon: User  },
     ...(isManager ? [{ id: 'pengguna' as Tab, label: 'Manajemen Pengguna', icon: Users }] : []),
-    { id: 'toko',      label: 'Pengaturan Toko',      icon: Store },
+    { id: 'toko',     label: 'Pengaturan Toko',      icon: Store },
   ]
 
   const [activeTab, setActiveTab] = useState<Tab>('profil')
 
   return (
     <div className="mx-auto max-w-4xl">
-      {/* Tab nav */}
       <div className="mb-6 flex gap-1 rounded-xl border border-border bg-muted/40 p-1">
         {tabs.map((t) => (
           <button
@@ -68,9 +88,10 @@ export function PengaturanClient({ role, userName, userEmail }: Props) {
 /* ─────────────── TAB: PROFIL ─────────────── */
 
 function ProfilTab({ userName, userEmail, role }: { userName: string; userEmail: string; role: string }) {
-  const [nama,         setNama]         = useState(userName)
-  const [email,        setEmail]        = useState(userEmail)
-  const [savedProfil,  setSavedProfil]  = useState(false)
+  const [nama,          setNama]          = useState(userName)
+  const [savedProfil,   setSavedProfil]   = useState(false)
+  const [errProfil,     setErrProfil]     = useState('')
+  const [loadingProfil, setLoadingProfil] = useState(false)
 
   const [pwLama,       setPwLama]       = useState('')
   const [pwBaru,       setPwBaru]       = useState('')
@@ -78,33 +99,68 @@ function ProfilTab({ userName, userEmail, role }: { userName: string; userEmail:
   const [showPw,       setShowPw]       = useState(false)
   const [savedPw,      setSavedPw]      = useState(false)
   const [errPw,        setErrPw]        = useState('')
+  const [loadingPw,    setLoadingPw]    = useState(false)
 
-  const initials = nama.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+  const initials  = nama.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
   const roleLabel: Record<string, string> = { manager: 'Manager', admin: 'Admin Staff', kasir: 'Kasir' }
 
-  function saveProfil() {
-    setSavedProfil(true)
-    setTimeout(() => setSavedProfil(false), 2000)
+  async function saveProfil() {
+    setErrProfil('')
+    if (!nama.trim()) return setErrProfil('Nama tidak boleh kosong.')
+    setLoadingProfil(true)
+    try {
+      const res = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nama.trim() }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        setErrProfil(d.message ?? 'Gagal menyimpan.')
+      } else {
+        setSavedProfil(true)
+        setTimeout(() => setSavedProfil(false), 2000)
+      }
+    } catch {
+      setErrProfil('Terjadi kesalahan koneksi.')
+    } finally {
+      setLoadingProfil(false)
+    }
   }
 
-  function savePw() {
+  async function savePw() {
     setErrPw('')
     if (!pwLama) return setErrPw('Masukkan password lama.')
     if (pwBaru.length < 6) return setErrPw('Password baru minimal 6 karakter.')
     if (pwBaru !== pwKonfirmasi) return setErrPw('Konfirmasi password tidak cocok.')
-    setSavedPw(true)
-    setPwLama(''); setPwBaru(''); setPwKonfirmasi('')
-    setTimeout(() => setSavedPw(false), 2000)
+    setLoadingPw(true)
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPassword: pwLama, newPassword: pwBaru }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setErrPw(d.message ?? 'Gagal memperbarui password.')
+      } else {
+        setSavedPw(true)
+        setPwLama(''); setPwBaru(''); setPwKonfirmasi('')
+        setTimeout(() => setSavedPw(false), 2000)
+      }
+    } catch {
+      setErrPw('Terjadi kesalahan koneksi.')
+    } finally {
+      setLoadingPw(false)
+    }
   }
 
   return (
     <div className="space-y-5">
-
       {/* Info akun */}
       <div className="rounded-xl border border-border bg-card p-6">
         <h2 className="mb-5 text-sm font-semibold">Informasi Akun</h2>
         <div className="flex items-start gap-5">
-          {/* Avatar */}
           <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xl font-bold text-primary">
             {initials}
           </div>
@@ -116,16 +172,23 @@ function ProfilTab({ userName, userEmail, role }: { userName: string; userEmail:
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Email</label>
-                <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="h-9" />
+                <div className="flex h-9 items-center rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground">
+                  {userEmail}
+                </div>
               </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Role</label>
               <p className="text-sm font-medium">{roleLabel[role] ?? role}</p>
             </div>
+            {errProfil && <p className="text-xs text-destructive">{errProfil}</p>}
             <div className="flex justify-end">
-              <Button size="sm" onClick={saveProfil} className="gap-2">
-                {savedProfil ? <><Check className="size-3.5" /> Tersimpan</> : 'Simpan Perubahan'}
+              <Button size="sm" onClick={saveProfil} disabled={loadingProfil} className="gap-2">
+                {loadingProfil
+                  ? <Loader2 className="size-3.5 animate-spin" />
+                  : savedProfil
+                    ? <><Check className="size-3.5" /> Tersimpan</>
+                    : 'Simpan Perubahan'}
               </Button>
             </div>
           </div>
@@ -176,16 +239,19 @@ function ProfilTab({ userName, userEmail, role }: { userName: string; userEmail:
             />
           </div>
           {errPw && <p className="text-xs text-destructive">{errPw}</p>}
-          {savedPw && <p className="text-xs text-chart-3 flex items-center gap-1"><Check className="size-3" /> Password berhasil diperbarui.</p>}
+          {savedPw && (
+            <p className="text-xs text-chart-3 flex items-center gap-1">
+              <Check className="size-3" /> Password berhasil diperbarui.
+            </p>
+          )}
           <div className="flex justify-end pt-1">
-            <Button size="sm" variant="outline" onClick={savePw} className="gap-2">
-              <KeyRound className="size-3.5" />
+            <Button size="sm" variant="outline" onClick={savePw} disabled={loadingPw} className="gap-2">
+              {loadingPw ? <Loader2 className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
               Perbarui Password
             </Button>
           </div>
         </div>
       </div>
-
     </div>
   )
 }
@@ -193,47 +259,88 @@ function ProfilTab({ userName, userEmail, role }: { userName: string; userEmail:
 /* ─────────────── TAB: PENGGUNA ─────────────── */
 
 function PenggunaTab() {
-  const [users, setUsers] = useState<AppUser[]>(MOCK_USERS)
+  const [users,     setUsers]     = useState<AppUser[]>([])
+  const [loading,   setLoading]   = useState(true)
   const [showModal, setShowModal] = useState(false)
 
-  // form state tambah user
-  const [formNama,  setFormNama]  = useState('')
-  const [formEmail, setFormEmail] = useState('')
-  const [formRole,  setFormRole]  = useState<UserRole>('kasir')
-  const [saved,     setSaved]     = useState(false)
+  const [formNama,     setFormNama]     = useState('')
+  const [formEmail,    setFormEmail]    = useState('')
+  const [formRole,     setFormRole]     = useState<UserRole>('kasir')
+  const [formPassword, setFormPassword] = useState('Zentory@123')
+  const [saving,       setSaving]       = useState(false)
+  const [saved,        setSaved]        = useState(false)
+  const [errForm,      setErrForm]      = useState('')
+
+  useEffect(() => {
+    fetch('/api/users')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: string; name: string; email: string; role: UserRole; createdAt: string }[]) => {
+        setUsers(data.map(u => ({
+          id:        u.id,
+          nama:      u.name,
+          email:     u.email,
+          role:      u.role,
+          status:    'Aktif' as UserStatus,
+          bergabung: u.createdAt.slice(0, 10),
+        })))
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
   function toggleStatus(id: string) {
-    setUsers((prev) => prev.map((u) =>
+    setUsers(prev => prev.map(u =>
       u.id === id ? { ...u, status: u.status === 'Aktif' ? 'Nonaktif' : 'Aktif' } : u
     ))
   }
 
-  function resetPassword(id: string) {
-    const u = users.find((x) => x.id === id)
-    alert(`Link reset password telah dikirim ke ${u?.email}`)
+  async function tambahUser() {
+    setErrForm('')
+    if (!formNama || !formEmail || !formPassword) {
+      setErrForm('Semua field wajib diisi.')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: formNama, email: formEmail, role: formRole, password: formPassword }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setErrForm(d.message ?? 'Gagal menambahkan pengguna.')
+      } else {
+        setUsers(prev => [...prev, {
+          id:        d.id,
+          nama:      d.name,
+          email:     d.email,
+          role:      d.role,
+          status:    'Aktif',
+          bergabung: d.createdAt.slice(0, 10),
+        }])
+        setFormNama(''); setFormEmail(''); setFormRole('kasir'); setFormPassword('Zentory@123')
+        setSaved(true)
+        setTimeout(() => { setSaved(false); setShowModal(false) }, 1500)
+      }
+    } catch {
+      setErrForm('Terjadi kesalahan koneksi.')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function tambahUser() {
-    if (!formNama || !formEmail) return
-    const newUser: AppUser = {
-      id:        `u${Date.now()}`,
-      nama:       formNama,
-      email:      formEmail,
-      role:       formRole,
-      status:     'Aktif',
-      bergabung:  new Date().toISOString().split('T')[0],
-    }
-    setUsers((prev) => [...prev, newUser])
-    setFormNama(''); setFormEmail(''); setFormRole('kasir')
-    setSaved(true)
-    setTimeout(() => { setSaved(false); setShowModal(false) }, 1200)
-  }
+  if (loading) return (
+    <div className="flex h-32 items-center justify-center">
+      <Loader2 className="size-5 animate-spin text-muted-foreground" />
+    </div>
+  )
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{users.length} pengguna terdaftar</p>
-        <Button size="sm" onClick={() => setShowModal(true)} className="gap-2">
+        <Button size="sm" onClick={() => { setShowModal(true); setErrForm(''); setSaved(false) }} className="gap-2">
           <Plus className="size-3.5" />
           Tambah Pengguna
         </Button>
@@ -278,32 +385,29 @@ function PenggunaTab() {
                   {new Date(u.bergabung).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </td>
                 <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(u.id)}
-                      title={u.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}
-                      className={
-                        'flex size-7 items-center justify-center rounded-md text-xs transition-colors ' +
-                        (u.status === 'Aktif'
-                          ? 'text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
-                          : 'text-muted-foreground hover:bg-chart-3/10 hover:text-chart-3')
-                      }
-                    >
-                      {u.status === 'Aktif' ? <X className="size-3.5" /> : <Check className="size-3.5" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => resetPassword(u.id)}
-                      title="Reset password"
-                      className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <KeyRound className="size-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleStatus(u.id)}
+                    title={u.status === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'}
+                    className={
+                      'flex size-7 items-center justify-center rounded-md text-xs transition-colors ' +
+                      (u.status === 'Aktif'
+                        ? 'text-muted-foreground hover:bg-destructive/10 hover:text-destructive'
+                        : 'text-muted-foreground hover:bg-chart-3/10 hover:text-chart-3')
+                    }
+                  >
+                    {u.status === 'Aktif' ? <X className="size-3.5" /> : <Check className="size-3.5" />}
+                  </button>
                 </td>
               </tr>
             ))}
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  Belum ada pengguna.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -334,7 +438,13 @@ function PenggunaTab() {
                   <option value="manager">Manager</option>
                 </select>
               </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Password Sementara</label>
+                <Input value={formPassword} onChange={(e) => setFormPassword(e.target.value)} className="h-9 font-mono text-xs" />
+                <p className="text-[10px] text-muted-foreground">Pengguna dapat mengubah password setelah login pertama.</p>
+              </div>
             </div>
+            {errForm && <p className="mt-3 text-xs text-destructive">{errForm}</p>}
             {saved && (
               <p className="mt-3 flex items-center gap-1 text-xs text-chart-3">
                 <Check className="size-3" /> Pengguna berhasil ditambahkan.
@@ -342,8 +452,8 @@ function PenggunaTab() {
             )}
             <div className="mt-5 flex justify-end gap-2">
               <Button size="sm" variant="outline" onClick={() => setShowModal(false)}>Batal</Button>
-              <Button size="sm" onClick={tambahUser} disabled={!formNama || !formEmail}>
-                Tambah
+              <Button size="sm" onClick={tambahUser} disabled={!formNama || !formEmail || saving}>
+                {saving ? <Loader2 className="size-3.5 animate-spin" /> : 'Tambah'}
               </Button>
             </div>
           </div>
@@ -369,13 +479,13 @@ function TokoTab() {
   }
 
   const rows: { label: string; key: keyof typeof MOCK_TOKO; type?: string; readonly?: boolean }[] = [
-    { label: 'Nama Toko',         key: 'nama' },
-    { label: 'Alamat',            key: 'alamat' },
-    { label: 'Telepon',           key: 'telepon', type: 'tel' },
-    { label: 'Email Toko',        key: 'email',   type: 'email' },
-    { label: 'Mata Uang',         key: 'mataUang',   readonly: true },
-    { label: 'Format Angka',      key: 'formatAngka', readonly: true },
-    { label: 'Zona Waktu',        key: 'zonaWaktu',   readonly: true },
+    { label: 'Nama Toko',    key: 'nama' },
+    { label: 'Alamat',       key: 'alamat' },
+    { label: 'Telepon',      key: 'telepon',     type: 'tel' },
+    { label: 'Email Toko',   key: 'email',       type: 'email' },
+    { label: 'Mata Uang',    key: 'mataUang',    readonly: true },
+    { label: 'Format Angka', key: 'formatAngka', readonly: true },
+    { label: 'Zona Waktu',   key: 'zonaWaktu',   readonly: true },
   ]
 
   return (

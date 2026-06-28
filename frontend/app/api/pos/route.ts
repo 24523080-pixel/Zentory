@@ -19,6 +19,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: `Stok ${product.name} tidak cukup (tersisa ${product.stok})` }, { status: 400 })
     }
 
+    // FR-06: Blokir transaksi jika produk sedang dalam cycle counting
+    const frozenOpname = await prisma.stockOpnameItem.findFirst({
+      where: { productId: item.productId, opname: { status: 'Aktif' } },
+      include: { opname: { select: { area: true } } },
+    })
+    if (frozenOpname) {
+      return NextResponse.json(
+        { message: `${product.name} sedang dalam cycle counting (area: ${frozenOpname.opname?.area ?? '-'}). Transaksi diblokir sementara.` },
+        { status: 400 }
+      )
+    }
+
     const newStok = product.stok - item.qty
     await prisma.product.update({ where: { id: item.productId }, data: { stok: newStok } })
 
