@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import { ClipboardList } from 'lucide-react'
 import { PURCHASE_ORDERS } from './_data'
 import { POManager } from './_components/POManager'
@@ -5,7 +6,13 @@ import { PageBanner } from '../_components/PageBanner'
 
 const total = PURCHASE_ORDERS.length
 
-export default function PurchaseOrderPage() {
+export default async function PurchaseOrderPage() {
+  const cookieStore = await cookies()
+  const raw  = cookieStore.get('zentory-token')?.value
+  const role = raw
+    ? (JSON.parse(raw) as { role: string }).role
+    : 'admin'
+
   return (
     <>
       <header className="flex h-16 items-center border-b border-border bg-card px-6">
@@ -29,7 +36,7 @@ export default function PurchaseOrderPage() {
           </span>
         </PageBanner>
 
-        <POManager />
+        <POManager role={role} />
       </main>
     </>
   )

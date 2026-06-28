@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, Plus, Minus, Trash2, ShoppingCart, X, CheckCircle2, RotateCcw } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, X, CheckCircle2, RotateCcw, AlertTriangle, ClipboardList } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { POS_PRODUCTS, KATEGORI, type POSProduct } from '../_data'
 
@@ -11,7 +11,6 @@ function formatRupiah(n: number) {
   return 'Rp ' + n.toLocaleString('id-ID')
 }
 
-// Warna ikon per kategori — memberi visual chunking instan tanpa foto
 const ICON_STYLE: Record<string, string> = {
   Minuman: 'bg-blue-50 text-blue-600',
   Kemasan: 'bg-amber-50 text-amber-600',
@@ -45,7 +44,7 @@ function ProductCard({ product, cartQty, onAdd }: {
           : 'border-border bg-card hover:border-primary/40 hover:shadow-md hover:shadow-primary/5 active:scale-[0.98]',
       ].join(' ')}
     >
-      {/* Overlay "Stok Habis" — frosted, tidak sekadar badge kecil */}
+      {/* Overlay "Stok Habis" */}
       {habis && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/70 backdrop-blur-[2px]">
           <span className="rounded-lg bg-destructive px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-sm">
@@ -54,7 +53,6 @@ function ProductCard({ product, cartQty, onAdd }: {
         </div>
       )}
 
-      {/* Badge kritis — animated pulse agar pre-attentive */}
       {kritis && !habis && (
         <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-chart-4 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
           <span className="size-1.5 animate-pulse rounded-full bg-white" />
@@ -62,26 +60,22 @@ function ProductCard({ product, cartQty, onAdd }: {
         </span>
       )}
 
-      {/* Badge qty di keranjang */}
       {cartQty > 0 && !habis && (
         <span className="absolute left-2 top-2 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
           {cartQty}
         </span>
       )}
 
-      {/* Ikon warna per kategori + inisial */}
       <div className={`mb-3 mt-1 flex size-10 items-center justify-center rounded-xl text-sm font-bold ${ICON_STYLE[product.kategori] ?? 'bg-muted text-muted-foreground'}`}>
         {product.name.charAt(0)}
       </div>
 
       <p className="line-clamp-2 text-xs font-medium leading-snug text-foreground">{product.name}</p>
 
-      {/* SKU dalam pill — contrast ratio WCAG AA */}
       <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground/65">
         {product.sku}
       </span>
 
-      {/* Harga — dicoret jika habis */}
       <p className={`mt-2 text-sm font-semibold ${habis ? 'text-muted-foreground/40 line-through' : 'text-primary'}`}>
         {formatRupiah(product.harga)}
       </p>
@@ -132,18 +126,20 @@ function CartRow({ item, onInc, onDec, onRemove }: {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function POSInterface() {
+  const [products, setProducts] = useState<POSProduct[]>([...POS_PRODUCTS])
   const [query, setQuery]       = useState('')
   const [kategori, setKategori] = useState('Semua')
   const [cart, setCart]         = useState<CartItem[]>([])
   const [modal, setModal]       = useState<'payment' | 'success' | null>(null)
   const [nominal, setNominal]   = useState('')
+  const [reorderList, setReorderList] = useState<POSProduct[]>([])
 
-  const filtered = useMemo(() => POS_PRODUCTS.filter((p) => {
+  const filtered = useMemo(() => products.filter((p) => {
     const q = query.toLowerCase()
     const matchQ = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
     const matchK = kategori === 'Semua' || p.kategori === kategori
     return matchQ && matchK
-  }), [query, kategori])
+  }), [products, query, kategori])
 
   const total      = cart.reduce((s, i) => s + i.product.harga * i.qty, 0)
   const nominalNum = parseInt(nominal.replace(/\D/g, ''), 10) || 0
@@ -170,8 +166,34 @@ export function POSInterface() {
   }
 
   function removeItem(id: string) { setCart((prev) => prev.filter((i) => i.product.id !== id)) }
-  function clearCart() { setCart([]); setModal(null); setNominal('') }
-  function confirmPayment() { if (nominalNum >= total) setModal('success') }
+
+  function clearCart() {
+    setCart([])
+    setModal(null)
+    setNominal('')
+    setReorderList([])
+  }
+
+  function confirmPayment() {
+    if (nominalNum < total) return
+
+    // FR-05: Kurangi stok produk setelah transaksi selesai
+    const updatedProducts = products.map((p) => {
+      const cartItem = cart.find((i) => i.product.id === p.id)
+      if (!cartItem) return p
+      return { ...p, stok: Math.max(0, p.stok - cartItem.qty) }
+    })
+    setProducts(updatedProducts)
+
+    // FR-01: Deteksi produk yang stoknya menyentuh/melewati ROP → siapkan alert draft PO
+    const belowROP = updatedProducts.filter((p) => {
+      const cartItem = cart.find((i) => i.product.id === p.id)
+      return cartItem && p.stok <= p.rop
+    })
+    setReorderList(belowROP)
+
+    setModal('success')
+  }
 
   return (
     <div className="flex h-full">
@@ -179,7 +201,6 @@ export function POSInterface() {
       {/* ── LEFT: Katalog ── */}
       <div className="flex flex-1 flex-col overflow-hidden">
 
-        {/* Search — tetap di atas, full width */}
         <div className="border-b border-border bg-card px-4 py-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -192,10 +213,8 @@ export function POSInterface() {
           </div>
         </div>
 
-        {/* Body: [sidebar kategori vertikal] + [grid produk] */}
         <div className="flex flex-1 overflow-hidden">
 
-          {/* Sidebar kategori — scalable hingga N kategori */}
           <nav className="w-24 shrink-0 overflow-y-auto border-r border-border bg-muted/20 py-2">
             {KATEGORI.map((k) => (
               <button
@@ -214,7 +233,6 @@ export function POSInterface() {
             ))}
           </nav>
 
-          {/* Grid produk */}
           <div className="flex-1 overflow-y-auto p-4">
             {filtered.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">Produk tidak ditemukan.</p>
@@ -273,7 +291,6 @@ export function POSInterface() {
           ))}
         </div>
 
-        {/* Total + CTA */}
         <div className="border-t border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
@@ -281,7 +298,6 @@ export function POSInterface() {
             </span>
             <span className="text-lg font-bold text-primary tabular-nums">{formatRupiah(total)}</span>
           </div>
-          {/* Tombol — label & shadow berubah saat keranjang terisi */}
           <button
             type="button"
             onClick={() => cart.length > 0 && setModal('payment')}
@@ -357,14 +373,14 @@ export function POSInterface() {
       {modal === 'success' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl text-center">
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl text-center overflow-y-auto max-h-[90vh]">
             <div className="mb-4 flex justify-center">
               <span className="flex size-14 items-center justify-center rounded-full bg-chart-3/15">
                 <CheckCircle2 className="size-7 text-chart-3" />
               </span>
             </div>
             <h2 className="text-base font-semibold">Pembayaran Berhasil</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Transaksi telah selesai diproses.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Transaksi selesai. Stok inventaris telah diperbarui.</p>
             <div className="my-5 space-y-2 text-left">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Total Tagihan</span>
@@ -379,6 +395,33 @@ export function POSInterface() {
                 <span className="font-bold text-chart-3 tabular-nums">{formatRupiah(kembalian)}</span>
               </div>
             </div>
+
+            {/* FR-01: Alert produk di bawah ROP → draft PO dibuat otomatis */}
+            {reorderList.length > 0 && (
+              <div className="mb-5 rounded-xl border border-chart-4/30 bg-chart-4/5 p-3 text-left">
+                <div className="mb-2 flex items-center gap-2">
+                  <AlertTriangle className="size-3.5 shrink-0 text-chart-4" />
+                  <span className="text-xs font-semibold text-chart-4">
+                    {reorderList.length} produk di bawah ROP — draft PO dibuat otomatis
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {reorderList.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between text-xs">
+                      <span className="truncate text-muted-foreground">{p.name}</span>
+                      <span className="ml-2 shrink-0 font-mono font-medium text-chart-4">
+                        sisa {p.stok} / ROP {p.rop}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <ClipboardList className="size-3 shrink-0" />
+                  Lihat Purchase Order untuk konfirmasi pengadaan
+                </div>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={clearCart}

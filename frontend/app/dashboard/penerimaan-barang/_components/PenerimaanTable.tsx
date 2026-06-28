@@ -4,9 +4,10 @@ import { useState, useMemo, Fragment } from 'react'
 import {
   Search, ChevronLeft, ChevronRight,
   ChevronDown, ChevronUp, X, ScanBarcode,
+  Plus, Minus, PackageCheck,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { PENERIMAAN_LIST, type StatusPenerimaan } from '../_data'
+import { PENERIMAAN_LIST, type StatusPenerimaan, type Penerimaan, type ItemPenerimaan } from '../_data'
 
 const STATUS_BADGE: Record<StatusPenerimaan, string> = {
   Menunggu:     'bg-muted text-muted-foreground',
@@ -17,20 +18,44 @@ const STATUS_BADGE: Record<StatusPenerimaan, string> = {
 const TABS = ['Semua', 'Menunggu', 'Diterima', 'Ada Selisih'] as const
 const PAGE_SIZE = 5
 
+const SUPPLIERS = ['Supplier Maju Jaya', 'Sumber Makmur Dist.', 'Cahaya Ritel Indo', 'Indo Distributor']
+
 function formatTanggal(iso: string) {
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function nextNoPenerimaan(list: Penerimaan[]): string {
+  const nums = list.map(p => parseInt(p.noPenerimaan.split('-')[2] ?? '0', 10)).filter(n => !isNaN(n))
+  const next = Math.max(0, ...nums) + 1
+  return `PEN-${new Date().getFullYear()}-${String(next).padStart(3, '0')}`
+}
+
+interface ItemRow extends ItemPenerimaan { _key: number }
+
+function emptyItemRow(key: number): ItemRow {
+  return { _key: key, sku: '', productName: '', qtyPO: 0, qtyDiterima: 0 }
+}
+
 export function PenerimaanTable() {
+  const [list, setList]         = useState<Penerimaan[]>(PENERIMAAN_LIST)
   const [query, setQuery]       = useState('')
   const [tab, setTab]           = useState('Semua')
   const [page, setPage]         = useState(1)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [saved, setSaved]       = useState(false)
+
+  // Form state
+  const [formNoPO, setFormNoPO]       = useState('')
+  const [formSupplier, setFormSupplier] = useState('')
+  const [formCatatan, setFormCatatan] = useState('')
+  const [formItems, setFormItems]     = useState<ItemRow[]>([emptyItemRow(1)])
+  const [keyCounter, setKeyCounter]   = useState(10)
+  const [errors, setErrors]           = useState<Record<string, string>>({})
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
-    return PENERIMAAN_LIST.filter((p) => {
+    return list.filter((p) => {
       const matchQuery = !q ||
         p.noPenerimaan.toLowerCase().includes(q) ||
         p.noPO.toLowerCase().includes(q) ||
@@ -38,13 +63,80 @@ export function PenerimaanTable() {
       const matchTab = tab === 'Semua' || p.status === tab
       return matchQuery && matchTab
     })
-  }, [query, tab])
+  }, [list, query, tab])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   function changeTab(t: string) { setTab(t); setPage(1); setExpanded(null) }
   function toggleExpand(id: string) { setExpanded((prev) => (prev === id ? null : id)) }
+
+  function openModal() {
+    setFormNoPO('')
+    setFormSupplier('')
+    setFormCatatan('')
+    setFormItems([emptyItemRow(Date.now())])
+    setErrors({})
+    setSaved(false)
+    setModalOpen(true)
+  }
+
+  function addItemRow() {
+    const key = keyCounter + 1
+    setKeyCounter(key)
+    setFormItems(f => [...f, emptyItemRow(key)])
+  }
+
+  function removeItemRow(key: number) {
+    setFormItems(f => f.filter(i => i._key !== key))
+  }
+
+  function updateItemRow(key: number, field: keyof ItemPenerimaan, value: string | number) {
+    setFormItems(f => f.map(i => i._key === key ? { ...i, [field]: value } : i))
+  }
+
+  function validate(): boolean {
+    const e: Record<string, string> = {}
+    if (!formNoPO.trim())      e.noPO     = 'No. PO wajib diisi'
+    if (!formSupplier.trim())  e.supplier = 'Supplier wajib diisi'
+    if (formItems.length === 0) e.items   = 'Minimal 1 item'
+    formItems.forEach((item, idx) => {
+      if (!item.sku.trim())         e[`item_${idx}_sku`]  = 'SKU wajib diisi'
+      if (!item.productName.trim()) e[`item_${idx}_name`] = 'Nama wajib diisi'
+      if (item.qtyPO <= 0)          e[`item_${idx}_qpo`]  = 'Qty PO harus > 0'
+    })
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  function computeStatus(items: ItemPenerimaan[]): StatusPenerimaan {
+    const hasDiterima = items.some(i => i.qtyDiterima > 0)
+    if (!hasDiterima) return 'Menunggu'
+    const hasSelisih  = items.some(i => i.qtyDiterima < i.qtyPO)
+    return hasSelisih ? 'Ada Selisih' : 'Diterima'
+  }
+
+  function handleSubmit() {
+    if (!validate()) return
+    const items: ItemPenerimaan[] = formItems.map(({ _key, ...rest }) => ({
+      ...rest,
+      qtyPO:       Number(rest.qtyPO),
+      qtyDiterima: Number(rest.qtyDiterima),
+    }))
+    const newEntry: Penerimaan = {
+      id:           `pen-new-${Date.now()}`,
+      noPenerimaan: nextNoPenerimaan(list),
+      noPO:         formNoPO.trim(),
+      supplier:     formSupplier.trim(),
+      tanggal:      new Date().toISOString().slice(0, 10),
+      status:       computeStatus(items),
+      items,
+      catatan:      formCatatan.trim() || undefined,
+    }
+    setList(prev => [newEntry, ...prev])
+    setSaved(true)
+    setTimeout(() => setModalOpen(false), 900)
+  }
 
   return (
     <>
@@ -81,7 +173,7 @@ export function PenerimaanTable() {
             </div>
             <button
               type="button"
-              onClick={() => setModalOpen(true)}
+              onClick={openModal}
               className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <ScanBarcode className="size-3.5" />
@@ -113,7 +205,6 @@ export function PenerimaanTable() {
                 </tr>
               ) : paginated.map((p) => (
                 <Fragment key={p.id}>
-                  {/* Main row */}
                   <tr
                     className="cursor-pointer bg-card transition-colors hover:bg-muted/30"
                     onClick={() => toggleExpand(p.id)}
@@ -136,7 +227,6 @@ export function PenerimaanTable() {
                     </td>
                   </tr>
 
-                  {/* Expanded detail */}
                   {expanded === p.id && (
                     <tr key={`${p.id}-detail`} className="bg-muted/20">
                       <td colSpan={7} className="px-6 py-4">
@@ -213,14 +303,14 @@ export function PenerimaanTable() {
         </div>
       </div>
 
-      {/* Modal Catat Penerimaan Baru */}
+      {/* ── Modal Catat Penerimaan Baru ── */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 py-8">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setModalOpen(false)} />
-          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-xl">
-            <div className="mb-5 flex items-center justify-between">
+          <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <div>
-                <h2 className="text-base font-semibold">Catat Penerimaan Baru</h2>
+                <h2 className="text-sm font-semibold">Catat Penerimaan Baru</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">Input barang yang baru tiba dari supplier</p>
               </div>
               <button
@@ -232,35 +322,118 @@ export function PenerimaanTable() {
               </button>
             </div>
 
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setModalOpen(false) }}>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">No. Purchase Order</label>
-                <Input placeholder="Contoh: PO-2026-042" className="h-9" />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Scan / Input SKU Barang</label>
-                <div className="relative">
-                  <ScanBarcode className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input placeholder="Scan barcode atau ketik SKU manual…" className="h-9 pl-9" />
+            <div className="space-y-5 p-6">
+              {/* No PO + Supplier */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">No. Purchase Order *</label>
+                  <Input
+                    value={formNoPO}
+                    onChange={(e) => setFormNoPO(e.target.value)}
+                    placeholder="Contoh: PO-2026-042"
+                    className={`font-mono h-9 ${errors.noPO ? 'border-destructive' : ''}`}
+                  />
+                  {errors.noPO && <p className="text-xs text-destructive">{errors.noPO}</p>}
                 </div>
-                <p className="text-[11px] text-muted-foreground">Tekan Enter untuk menambah item ke daftar</p>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Supplier *</label>
+                  <Input
+                    list="supplier-pen-list"
+                    value={formSupplier}
+                    onChange={(e) => setFormSupplier(e.target.value)}
+                    placeholder="Nama supplier"
+                    className={`h-9 ${errors.supplier ? 'border-destructive' : ''}`}
+                  />
+                  <datalist id="supplier-pen-list">
+                    {SUPPLIERS.map(s => <option key={s} value={s} />)}
+                  </datalist>
+                  {errors.supplier && <p className="text-xs text-destructive">{errors.supplier}</p>}
+                </div>
               </div>
 
-              <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground text-center">
-                Item yang di-scan akan muncul di sini
+              {/* Items */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">Daftar Item *</label>
+                  {errors.items && <p className="text-xs text-destructive">{errors.items}</p>}
+                </div>
+
+                <div className="grid grid-cols-[1fr_120px_90px_90px_28px] gap-2 px-1">
+                  {['Nama Produk', 'SKU', 'Qty PO', 'Qty Terima', ''].map(h => (
+                    <span key={h} className="text-[11px] font-medium text-muted-foreground">{h}</span>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  {formItems.map((item, idx) => (
+                    <div key={item._key} className="grid grid-cols-[1fr_120px_90px_90px_28px] gap-2 items-start">
+                      <Input
+                        value={item.productName}
+                        onChange={(e) => updateItemRow(item._key, 'productName', e.target.value)}
+                        placeholder="cth: Kopi Arabica 250g"
+                        className={`h-8 text-xs ${errors[`item_${idx}_name`] ? 'border-destructive' : ''}`}
+                      />
+                      <Input
+                        value={item.sku}
+                        onChange={(e) => updateItemRow(item._key, 'sku', e.target.value.toUpperCase())}
+                        placeholder="KOP-ARB-250"
+                        className={`h-8 font-mono text-xs ${errors[`item_${idx}_sku`] ? 'border-destructive' : ''}`}
+                      />
+                      <Input
+                        type="number" min="1"
+                        value={item.qtyPO || ''}
+                        onChange={(e) => updateItemRow(item._key, 'qtyPO', Number(e.target.value))}
+                        placeholder="0"
+                        className={`h-8 text-xs text-right ${errors[`item_${idx}_qpo`] ? 'border-destructive' : ''}`}
+                      />
+                      <Input
+                        type="number" min="0"
+                        value={item.qtyDiterima || ''}
+                        onChange={(e) => updateItemRow(item._key, 'qtyDiterima', Number(e.target.value))}
+                        placeholder="0"
+                        className="h-8 text-xs text-right"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeItemRow(item._key)}
+                        disabled={formItems.length === 1}
+                        className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+                      >
+                        <Minus className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addItemRow}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+                >
+                  <Plus className="size-3.5" /> Tambah Item
+                </button>
               </div>
 
+              {/* Catatan */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Catatan <span className="text-muted-foreground">(opsional)</span></label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Catatan <span className="text-muted-foreground/60">(opsional)</span>
+                </label>
                 <textarea
                   rows={2}
+                  value={formCatatan}
+                  onChange={(e) => setFormCatatan(e.target.value)}
                   placeholder="Contoh: 2 karton rusak, dikembalikan ke driver..."
                   className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </div>
+            </div>
 
-              <div className="flex justify-end gap-2 pt-1">
+            <div className="flex items-center justify-between border-t border-border px-6 py-4">
+              <p className="text-xs text-muted-foreground">
+                Status akan ditentukan otomatis dari qty yang diterima
+              </p>
+              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
@@ -269,13 +442,17 @@ export function PenerimaanTable() {
                   Batal
                 </button>
                 <button
-                  type="submit"
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  type="button"
+                  onClick={handleSubmit}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                 >
-                  Simpan Penerimaan
+                  {saved
+                    ? <><PackageCheck className="size-4" /> Tersimpan!</>
+                    : <><ScanBarcode className="size-4" /> Simpan Penerimaan</>
+                  }
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

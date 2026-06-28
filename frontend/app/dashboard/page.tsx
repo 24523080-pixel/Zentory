@@ -6,12 +6,16 @@ import { StockTable }     from './_components/StockTable'
 import { PageBanner }     from './_components/PageBanner'
 
 export default function DashboardPage() {
+  const dateStr = new Date().toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+
   return (
     <>
       <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
         <div>
           <h1 className="text-base font-semibold">Dashboard</h1>
-          <p className="text-xs text-muted-foreground">Sabtu, 14 Juni 2026</p>
+          <p className="text-xs text-muted-foreground">{dateStr}</p>
         </div>
         <button
           type="button"

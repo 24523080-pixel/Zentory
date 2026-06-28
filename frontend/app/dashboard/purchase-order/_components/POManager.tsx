@@ -67,7 +67,10 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 // ── Main export ────────────────────────────────────────────────
-export function POManager() {
+export function POManager({ role = 'admin' }: { role?: string }) {
+  const isManager = role === 'manager'
+  const isAdmin   = role === 'admin'
+
   const [orders, setOrders] = useState<PurchaseOrder[]>(PURCHASE_ORDERS)
   const [modal, setModal]   = useState<ModalState>(null)
   const [form, setForm]     = useState<FormData>(newForm())
@@ -232,10 +235,12 @@ export function POManager() {
                   }>{t}</button>
               ))}
             </div>
-            <button type="button" onClick={openCreate}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
-              <PlusCircle className="size-3.5" /> Buat PO
-            </button>
+            {(isAdmin || isManager) && (
+              <button type="button" onClick={openCreate}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+                <PlusCircle className="size-3.5" /> Buat PO
+              </button>
+            )}
           </div>
         </div>
 
@@ -279,30 +284,38 @@ export function POManager() {
                         className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                         <Eye className="size-3.5" />
                       </a>
-                      {/* Draft: Kirim + Hapus */}
+                      {/* Draft: Manager setujui & kirim, Admin/Manager hapus */}
                       {po.status === 'Draft' && (
                         <>
-                          <button type="button" onClick={() => kirimPO(po.id)} title="Kirim ke Supplier"
-                            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
-                            <SendHorizonal className="size-3.5" />
-                          </button>
-                          <button type="button" onClick={() => openDelete(po)} title="Hapus PO"
-                            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
-                            <Trash2 className="size-3.5" />
-                          </button>
+                          {isManager && (
+                            <button type="button" onClick={() => kirimPO(po.id)} title="Setujui & Kirim ke Supplier"
+                              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
+                              <SendHorizonal className="size-3.5" />
+                            </button>
+                          )}
+                          {(isAdmin || isManager) && (
+                            <button type="button" onClick={() => openDelete(po)} title="Hapus PO"
+                              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
                         </>
                       )}
-                      {/* Dikirim: Terima + Batalkan */}
+                      {/* Dikirim: Admin terima, Manager atau Admin batalkan */}
                       {po.status === 'Dikirim' && (
                         <>
-                          <button type="button" onClick={() => terimaPO(po.id)} title="Tandai Diterima"
-                            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-chart-3/10 hover:text-chart-3 transition-colors">
-                            <PackageOpen className="size-3.5" />
-                          </button>
-                          <button type="button" onClick={() => batalkanPO(po.id)} title="Batalkan PO"
-                            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
-                            <XCircle className="size-3.5" />
-                          </button>
+                          {isAdmin && (
+                            <button type="button" onClick={() => terimaPO(po.id)} title="Tandai Diterima"
+                              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-chart-3/10 hover:text-chart-3 transition-colors">
+                              <PackageOpen className="size-3.5" />
+                            </button>
+                          )}
+                          {(isAdmin || isManager) && (
+                            <button type="button" onClick={() => batalkanPO(po.id)} title="Batalkan PO"
+                              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
+                              <XCircle className="size-3.5" />
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

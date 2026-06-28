@@ -4,7 +4,7 @@ import { Fragment, useState } from 'react'
 import {
   Plus, ChevronDown, ChevronUp,
   CheckCircle2, XCircle, RotateCcw, Trash2, X,
-  Search, ClipboardCheck,
+  Search, ClipboardCheck, PackageCheck,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -229,6 +229,7 @@ export function SalesReturnClient({ role }: Props) {
   const [inspeksiTarget, setInspeksiTarget] = useState<SalesReturn | null>(null)
   const [approveId, setApproveId]   = useState<string | null>(null)
   const [rejectId, setRejectId]     = useState<string | null>(null)
+  const [stokToast, setStokToast]   = useState<SalesReturn | null>(null)
 
   const isKasir   = role === 'kasir'
   const isAdmin   = role === 'admin'
@@ -267,10 +268,12 @@ export function SalesReturnClient({ role }: Props) {
   }
 
   function handleApprove(id: string) {
+    const target = returns.find(r => r.id === id)
     setReturns((prev) => prev.map((r) =>
       r.id === id ? { ...r, status: 'Disetujui', disetujuiOleh: 'Manager' } : r
     ))
     setApproveId(null)
+    if (target) setStokToast(target)
   }
 
   function handleReject(id: string) {
@@ -542,6 +545,33 @@ export function SalesReturnClient({ role }: Props) {
                 Ya, Tolak
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FR-13: Toast stok dikembalikan ke inventaris setelah approve */}
+      {stokToast && (
+        <div className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border border-chart-3/30 bg-card p-4 shadow-xl">
+          <div className="flex items-start gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-chart-3/10">
+              <PackageCheck className="size-4 text-chart-3" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-chart-3">Stok dikembalikan ke inventaris</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{stokToast.noReturn} disetujui</p>
+              <div className="mt-2 space-y-1">
+                {stokToast.items.map(item => (
+                  <div key={item.productId} className="flex items-center justify-between text-xs">
+                    <span className="truncate text-muted-foreground">{item.productName}</span>
+                    <span className="ml-2 shrink-0 font-medium text-chart-3">+{item.qty} pcs</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button type="button" onClick={() => setStokToast(null)}
+              className="text-muted-foreground hover:text-foreground">
+              <X className="size-3.5" />
+            </button>
           </div>
         </div>
       )}
