@@ -13,13 +13,15 @@ type Role = 'manager' | 'admin' | 'kasir'
 
 const NAV_CONFIG: Record<Role, { icon: React.ElementType; label: string; href: string }[]> = {
   manager: [
-    { icon: TrendingUp,     label: 'Dashboard',      href: '/dashboard'                  },
-    { icon: BarChart2,      label: 'Analitik',        href: '/dashboard/analitik'         },
-    { icon: ShoppingCart,   label: 'Purchase Order',  href: '/dashboard/purchase-order'   },
-    { icon: ClipboardCheck, label: 'Stock Opname',    href: '/dashboard/stock-opname'     },
-    { icon: RotateCcw,      label: 'Sales Return',    href: '/dashboard/sales-return'     },
-    { icon: Bell,           label: 'Notifikasi',      href: '/dashboard/notifikasi'       },
-    { icon: Settings,       label: 'Pengaturan',      href: '/dashboard/pengaturan'       },
+    { icon: TrendingUp,     label: 'Dashboard',        href: '/dashboard'                  },
+    { icon: BarChart2,      label: 'Analitik',          href: '/dashboard/analitik'         },
+    { icon: Package,        label: 'Inventaris',        href: '/dashboard/inventaris'       },
+    { icon: ShoppingCart,   label: 'Purchase Order',    href: '/dashboard/purchase-order'   },
+    { icon: PackageCheck,   label: 'Penerimaan Barang', href: '/dashboard/penerimaan-barang'},
+    { icon: ClipboardCheck, label: 'Stock Opname',      href: '/dashboard/stock-opname'     },
+    { icon: RotateCcw,      label: 'Sales Return',      href: '/dashboard/sales-return'     },
+    { icon: Bell,           label: 'Notifikasi',        href: '/dashboard/notifikasi'       },
+    { icon: Settings,       label: 'Pengaturan',        href: '/dashboard/pengaturan'       },
   ],
   admin: [
     { icon: Package,        label: 'Inventaris',        href: '/dashboard/inventaris'         },

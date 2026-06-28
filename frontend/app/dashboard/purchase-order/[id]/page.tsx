@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, Building2, Calendar, Hash } from 'lucide-react'
 import { PURCHASE_ORDERS, totalNilai, type POStatus } from '../_data'
 import { PrintButton } from './_components/PrintButton'
+import { EmailModal } from './_components/EmailModal'
 
 const STATUS_BADGE: Record<POStatus, string> = {
   Draft:      'bg-muted text-muted-foreground',
@@ -49,6 +50,7 @@ export default async function PODetailPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <EmailModal po={po} />
           <PrintButton />
         </div>
       </header>

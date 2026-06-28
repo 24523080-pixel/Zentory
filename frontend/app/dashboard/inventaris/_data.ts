@@ -1,5 +1,5 @@
 export type Status       = 'Tersedia' | 'Reorder' | 'Kritis'
-export type Klasifikasi  = 'Fast' | 'Slow' | 'Dead'
+export type Klasifikasi  = 'Fast' | 'Slow' | 'Dead' | 'Insufficient Data'
 
 export interface Product {
   id:           number

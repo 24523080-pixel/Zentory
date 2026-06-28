@@ -12,9 +12,10 @@ const STATUS_BADGE: Record<Status, string> = {
 }
 
 const KLASIFIKASI_BADGE: Record<Klasifikasi, string> = {
-  Fast: 'bg-primary/10 text-primary',
-  Slow: 'bg-chart-4/10 text-chart-4',
-  Dead: 'bg-muted text-muted-foreground',
+  Fast:               'bg-primary/10 text-primary',
+  Slow:               'bg-chart-4/10 text-chart-4',
+  Dead:               'bg-muted text-muted-foreground',
+  'Insufficient Data':'bg-muted/50 text-muted-foreground/70',
 }
 
 const TABS = ['Semua', 'Fast', 'Slow', 'Dead', 'Kritis'] as const
