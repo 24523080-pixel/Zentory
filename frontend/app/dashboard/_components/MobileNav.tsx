@@ -60,21 +60,21 @@ export function MobileNav({ role, userName }: { role: string; userName: string }
   return (
     <>
       {/* Top bar — mobile only */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 lg:hidden print:hidden">
-        <div className="flex items-center gap-2.5">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4 lg:hidden print:hidden">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Buka menu"
+        >
+          <Menu className="size-5" />
+        </button>
+        <div className="flex items-center gap-2">
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Boxes className="size-3.5" />
           </span>
           <span className="text-sm font-semibold tracking-tight">Zentory</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Buka menu"
-        >
-          <Menu className="size-5" />
-        </button>
       </header>
 
       {/* Backdrop */}
