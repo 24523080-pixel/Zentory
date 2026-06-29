@@ -13,22 +13,8 @@ export const metadata: Metadata = {
   title: 'Zentory — Sistem Manajemen Inventori Pintar untuk Ritel & UMKM',
   description:
     'Zentory memantau stok secara real-time, mengotomatiskan pengadaan, dan memberi insight Fast/Slow/Dead Stock agar toko Anda tidak pernah kehabisan barang populer maupun menumpuk stok mati.',
-  generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
     apple: '/apple-icon.png',
   },
 }
