@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Building2, Calendar, Hash } from 'lucide-react'
-import { PURCHASE_ORDERS, totalNilai, type POStatus } from '../_data'
+import { prisma } from '@/lib/prisma'
 import { PrintButton } from './_components/PrintButton'
 import { EmailModal } from './_components/EmailModal'
+
+type POStatus = 'Draft' | 'Dikirim' | 'Diterima' | 'Dibatalkan'
 
 const STATUS_BADGE: Record<POStatus, string> = {
   Draft:      'bg-muted text-muted-foreground',
@@ -21,14 +23,35 @@ function formatTanggal(iso: string) {
   })
 }
 
+function totalNilai(items: { qty: number; hargaSatuan: number }[]) {
+  return items.reduce((s, i) => s + i.qty * i.hargaSatuan, 0)
+}
+
 export default async function PODetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const po = PURCHASE_ORDERS.find((p) => p.id === id)
-  if (!po) notFound()
+  const raw = await prisma.purchaseOrder.findUnique({
+    where: { id },
+    include: { items: true },
+  })
+  if (!raw) notFound()
+
+  const po = {
+    id:       raw.id,
+    noPO:     raw.noPO,
+    supplier: raw.supplier,
+    tanggal:  raw.tanggal.toISOString(),
+    status:   raw.status as POStatus,
+    items:    raw.items.map((i) => ({
+      productName: i.productName,
+      sku:         i.sku,
+      qty:         i.qty,
+      hargaSatuan: i.hargaSatuan,
+    })),
+  }
 
   const total = totalNilai(po)
 
