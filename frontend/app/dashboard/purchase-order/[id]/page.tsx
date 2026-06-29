@@ -53,7 +53,7 @@ export default async function PODetailPage({
     })),
   }
 
-  const total = totalNilai(po)
+  const total = totalNilai(po.items)
 
   return (
     <>
