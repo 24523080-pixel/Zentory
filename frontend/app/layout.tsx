@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   description:
     'Zentory memantau stok secara real-time, mengotomatiskan pengadaan, dan memberi insight Fast/Slow/Dead Stock agar toko Anda tidak pernah kehabisan barang populer maupun menumpuk stok mati.',
   icons: {
-    icon:  [{ url: '/icon.svg', type: 'image/svg+xml' }],
-    apple: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    icon:  [{ url: '/zentory-icon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/zentory-icon.svg', type: 'image/svg+xml' }],
   },
 }
 
