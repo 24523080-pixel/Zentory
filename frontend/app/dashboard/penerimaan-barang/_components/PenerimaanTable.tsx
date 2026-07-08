@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useMemo, Fragment, useCallback, useEffect } from 'react'
+import { useState, useMemo, Fragment, useCallback, useEffect, useRef } from 'react'
 import {
   Search, ChevronLeft, ChevronRight,
   ChevronDown, ChevronUp, X, ScanBarcode,
-  Plus, Minus, PackageCheck, Loader2,
+  PackageCheck, Loader2, CheckCircle2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 
@@ -13,6 +13,10 @@ interface ItemPenerimaan { sku: string; productName: string; qtyPO: number; qtyD
 interface Penerimaan {
   id: string; noPenerimaan: string; noPO: string; supplier: string
   tanggal: string; status: string; catatan?: string | null; items: ItemPenerimaan[]
+}
+interface POOption {
+  id: string; noPO: string; supplier: string
+  items: { sku: string; productName: string; qty: number; hargaSatuan: number }[]
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -24,17 +28,11 @@ const STATUS_BADGE: Record<string, string> = {
 const TABS = ['Semua', 'Menunggu', 'Diterima', 'Ada Selisih'] as const
 const PAGE_SIZE = 5
 
-const SUPPLIERS = ['Supplier Maju Jaya', 'Sumber Makmur Dist.', 'Cahaya Ritel Indo', 'Indo Distributor']
-
 function formatTanggal(iso: string) {
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 interface ItemRow extends ItemPenerimaan { _key: number }
-
-function emptyItemRow(key: number): ItemRow {
-  return { _key: key, sku: '', productName: '', qtyPO: 0, qtyDiterima: 0 }
-}
 
 export function PenerimaanTable() {
   const [list, setList]         = useState<Penerimaan[]>([])
@@ -57,14 +55,60 @@ export function PenerimaanTable() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [saved, setSaved]       = useState(false)
+  const [saving, setSaving]     = useState(false)
 
-  // Form state
-  const [formNoPO, setFormNoPO]       = useState('')
-  const [formSupplier, setFormSupplier] = useState('')
+  // PO autocomplete
+  const [availablePOs, setAvailablePOs] = useState<POOption[]>([])
+  const [selectedPO, setSelectedPO]     = useState<POOption | null>(null)
+  const [poSearch, setPoSearch]         = useState('')
+  const [poDropOpen, setPoDropOpen]     = useState(false)
+  const poDropRef = useRef<HTMLDivElement>(null)
+
+  // Form state — hanya catatan & qty diterima per item
   const [formCatatan, setFormCatatan] = useState('')
-  const [formItems, setFormItems]     = useState<ItemRow[]>([emptyItemRow(1)])
-  const [keyCounter, setKeyCounter]   = useState(10)
+  const [formItems, setFormItems]     = useState<ItemRow[]>([])
   const [errors, setErrors]           = useState<Record<string, string>>({})
+
+  // Load POs dengan status Dikirim untuk autocomplete
+  useEffect(() => {
+    fetch('/api/purchase-orders')
+      .then(r => r.ok ? r.json() : [])
+      .then((pos: POOption[]) => setAvailablePOs(pos.filter((p: any) => p.status === 'Dikirim')))
+      .catch(() => {})
+  }, [])
+
+  // Tutup dropdown PO saat klik di luar
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (poDropRef.current && !poDropRef.current.contains(e.target as Node)) {
+        setPoDropOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const poSuggestions = useMemo(() => {
+    if (!poSearch.trim()) return availablePOs.slice(0, 8)
+    const q = poSearch.toLowerCase()
+    return availablePOs.filter(p =>
+      p.noPO.toLowerCase().includes(q) || p.supplier.toLowerCase().includes(q)
+    ).slice(0, 8)
+  }, [availablePOs, poSearch])
+
+  function selectPO(po: POOption) {
+    setSelectedPO(po)
+    setPoSearch(po.noPO)
+    setPoDropOpen(false)
+    setErrors({})
+    setFormItems(po.items.map((item, i) => ({
+      _key:        i + 1,
+      sku:         item.sku,
+      productName: item.productName,
+      qtyPO:       item.qty,
+      qtyDiterima: 0,
+    })))
+  }
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
@@ -85,52 +129,31 @@ export function PenerimaanTable() {
   function toggleExpand(id: string) { setExpanded((prev) => (prev === id ? null : id)) }
 
   function openModal() {
-    setFormNoPO('')
-    setFormSupplier('')
+    setSelectedPO(null)
+    setPoSearch('')
+    setPoDropOpen(false)
     setFormCatatan('')
-    setFormItems([emptyItemRow(Date.now())])
+    setFormItems([])
     setErrors({})
     setSaved(false)
+    setSaving(false)
     setModalOpen(true)
   }
 
-  function addItemRow() {
-    const key = keyCounter + 1
-    setKeyCounter(key)
-    setFormItems(f => [...f, emptyItemRow(key)])
-  }
-
-  function removeItemRow(key: number) {
-    setFormItems(f => f.filter(i => i._key !== key))
-  }
-
-  function updateItemRow(key: number, field: keyof ItemPenerimaan, value: string | number) {
-    setFormItems(f => f.map(i => i._key === key ? { ...i, [field]: value } : i))
+  function updateQtyDiterima(key: number, value: number) {
+    setFormItems(f => f.map(i => i._key === key ? { ...i, qtyDiterima: value } : i))
   }
 
   function validate(): boolean {
     const e: Record<string, string> = {}
-    if (!formNoPO.trim())      e.noPO     = 'No. PO wajib diisi'
-    if (!formSupplier.trim())  e.supplier = 'Supplier wajib diisi'
-    if (formItems.length === 0) e.items   = 'Minimal 1 item'
-    formItems.forEach((item, idx) => {
-      if (!item.sku.trim())         e[`item_${idx}_sku`]  = 'SKU wajib diisi'
-      if (!item.productName.trim()) e[`item_${idx}_name`] = 'Nama wajib diisi'
-      if (item.qtyPO <= 0)          e[`item_${idx}_qpo`]  = 'Qty PO harus > 0'
-    })
+    if (!selectedPO) e.noPO = 'Pilih No. Purchase Order terlebih dahulu'
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
-  function computeStatus(items: ItemPenerimaan[]): StatusPenerimaan {
-    const hasDiterima = items.some(i => i.qtyDiterima > 0)
-    if (!hasDiterima) return 'Menunggu'
-    const hasSelisih  = items.some(i => i.qtyDiterima < i.qtyPO)
-    return hasSelisih ? 'Ada Selisih' : 'Diterima'
-  }
-
   async function handleSubmit() {
-    if (!validate()) return
+    if (!validate() || !selectedPO) return
+    setSaving(true)
     const items = formItems.map(({ _key, ...rest }) => ({
       ...rest,
       qtyPO:       Number(rest.qtyPO),
@@ -140,8 +163,10 @@ export function PenerimaanTable() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        noPO: formNoPO.trim(), supplier: formSupplier.trim(),
-        catatan: formCatatan.trim() || null, items,
+        noPO:     selectedPO.noPO,
+        supplier: selectedPO.supplier,
+        catatan:  formCatatan.trim() || null,
+        items,
       }),
     })
     if (res.ok) {
@@ -150,6 +175,7 @@ export function PenerimaanTable() {
       setSaved(true)
       setTimeout(() => setModalOpen(false), 900)
     }
+    setSaving(false)
   }
 
   return (
@@ -343,96 +369,101 @@ export function PenerimaanTable() {
             </div>
 
             <div className="space-y-5 p-6">
-              {/* No PO + Supplier */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">No. Purchase Order *</label>
-                  <Input
-                    value={formNoPO}
-                    onChange={(e) => setFormNoPO(e.target.value)}
-                    placeholder="Contoh: PO-2026-042"
-                    className={`font-mono h-9 ${errors.noPO ? 'border-destructive' : ''}`}
-                  />
-                  {errors.noPO && <p className="text-xs text-destructive">{errors.noPO}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Supplier *</label>
-                  <Input
-                    list="supplier-pen-list"
-                    value={formSupplier}
-                    onChange={(e) => setFormSupplier(e.target.value)}
-                    placeholder="Nama supplier"
-                    className={`h-9 ${errors.supplier ? 'border-destructive' : ''}`}
-                  />
-                  <datalist id="supplier-pen-list">
-                    {SUPPLIERS.map(s => <option key={s} value={s} />)}
-                  </datalist>
-                  {errors.supplier && <p className="text-xs text-destructive">{errors.supplier}</p>}
-                </div>
-              </div>
 
-              {/* Items */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-muted-foreground">Daftar Item *</label>
-                  {errors.items && <p className="text-xs text-destructive">{errors.items}</p>}
-                </div>
-
-                <div className="grid grid-cols-[1fr_120px_90px_90px_28px] gap-2 px-1">
-                  {['Nama Produk', 'SKU', 'Qty PO', 'Qty Terima', ''].map(h => (
-                    <span key={h} className="text-[11px] font-medium text-muted-foreground">{h}</span>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  {formItems.map((item, idx) => (
-                    <div key={item._key} className="grid grid-cols-[1fr_120px_90px_90px_28px] gap-2 items-start">
-                      <Input
-                        value={item.productName}
-                        onChange={(e) => updateItemRow(item._key, 'productName', e.target.value)}
-                        placeholder="cth: Kopi Arabica 250g"
-                        className={`h-8 text-xs ${errors[`item_${idx}_name`] ? 'border-destructive' : ''}`}
-                      />
-                      <Input
-                        value={item.sku}
-                        onChange={(e) => updateItemRow(item._key, 'sku', e.target.value.toUpperCase())}
-                        placeholder="KOP-ARB-250"
-                        className={`h-8 font-mono text-xs ${errors[`item_${idx}_sku`] ? 'border-destructive' : ''}`}
-                      />
-                      <Input
-                        type="number" min="1"
-                        value={item.qtyPO || ''}
-                        onChange={(e) => updateItemRow(item._key, 'qtyPO', Number(e.target.value))}
-                        placeholder="0"
-                        className={`h-8 text-xs text-right ${errors[`item_${idx}_qpo`] ? 'border-destructive' : ''}`}
-                      />
-                      <Input
-                        type="number" min="0"
-                        value={item.qtyDiterima || ''}
-                        onChange={(e) => updateItemRow(item._key, 'qtyDiterima', Number(e.target.value))}
-                        placeholder="0"
-                        className="h-8 text-xs text-right"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeItemRow(item._key)}
-                        disabled={formItems.length === 1}
-                        className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
-                      >
-                        <Minus className="size-3.5" />
+              {/* No. PO — dropdown autocomplete */}
+              <div className="space-y-1.5" ref={poDropRef}>
+                <label className="text-xs font-medium text-muted-foreground">No. Purchase Order *</label>
+                <div className="relative">
+                  {selectedPO ? (
+                    /* PO sudah dipilih — tampilkan chip */
+                    <div className="flex items-center gap-2 rounded-lg border border-chart-3/40 bg-chart-3/5 px-3 py-2">
+                      <CheckCircle2 className="size-4 shrink-0 text-chart-3" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-sm font-semibold">{selectedPO.noPO}</p>
+                        <p className="text-xs text-muted-foreground truncate">{selectedPO.supplier} · {selectedPO.items.length} item</p>
+                      </div>
+                      <button type="button" onClick={() => { setSelectedPO(null); setPoSearch(''); setFormItems([]) }}
+                        className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                        <X className="size-3.5" />
                       </button>
                     </div>
-                  ))}
+                  ) : (
+                    <>
+                      <Input
+                        value={poSearch}
+                        onChange={e => { setPoSearch(e.target.value); setPoDropOpen(true) }}
+                        onFocus={() => setPoDropOpen(true)}
+                        placeholder="Ketik No. PO atau nama supplier…"
+                        className={`font-mono h-9 ${errors.noPO ? 'border-destructive' : ''}`}
+                      />
+                      {poDropOpen && (
+                        <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-lg border border-border bg-card shadow-lg overflow-hidden">
+                          {poSuggestions.length === 0 ? (
+                            <p className="px-4 py-3 text-xs text-muted-foreground">
+                              Tidak ada PO dengan status Dikirim yang cocok.
+                            </p>
+                          ) : poSuggestions.map(po => (
+                            <button key={po.id} type="button"
+                              onMouseDown={() => selectPO(po)}
+                              className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-muted transition-colors border-b border-border/50 last:border-0">
+                              <div>
+                                <p className="font-mono text-sm font-medium">{po.noPO}</p>
+                                <p className="text-xs text-muted-foreground">{po.supplier}</p>
+                              </div>
+                              <span className="text-xs text-muted-foreground">{po.items.length} item</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={addItemRow}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
-                >
-                  <Plus className="size-3.5" /> Tambah Item
-                </button>
+                {errors.noPO && <p className="text-xs text-destructive">{errors.noPO}</p>}
               </div>
+
+              {/* Daftar item — auto-fill dari PO, hanya qty diterima yang bisa diubah */}
+              {selectedPO && formItems.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Daftar Item dari PO</label>
+
+                  <div className="grid grid-cols-[1fr_100px_90px_90px] gap-2 px-1">
+                    {['Nama Produk', 'SKU', 'Qty PO', 'Qty Diterima'].map(h => (
+                      <span key={h} className="text-[11px] font-medium text-muted-foreground">{h}</span>
+                    ))}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {formItems.map((item) => (
+                      <div key={item._key} className="grid grid-cols-[1fr_100px_90px_90px] gap-2 items-center">
+                        <div className="rounded-md bg-muted/50 px-3 py-1.5 text-xs font-medium truncate">
+                          {item.productName}
+                        </div>
+                        <div className="rounded-md bg-muted/50 px-3 py-1.5 font-mono text-xs text-muted-foreground">
+                          {item.sku}
+                        </div>
+                        <div className="rounded-md bg-muted/50 px-3 py-1.5 text-xs text-right tabular-nums text-muted-foreground">
+                          {item.qtyPO}
+                        </div>
+                        <Input
+                          type="number" min="0" max={item.qtyPO}
+                          value={item.qtyDiterima || ''}
+                          onChange={e => updateQtyDiterima(item._key, Number(e.target.value))}
+                          placeholder="0"
+                          className="h-8 text-xs text-right"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Placeholder sebelum PO dipilih */}
+              {!selectedPO && (
+                <div className="rounded-lg border border-dashed border-border py-8 text-center">
+                  <ScanBarcode className="mx-auto mb-2 size-8 text-muted-foreground/40" />
+                  <p className="text-xs text-muted-foreground">Pilih No. PO di atas untuk memuat daftar item</p>
+                </div>
+              )}
 
               {/* Catatan */}
               <div className="space-y-1.5">
@@ -451,24 +482,20 @@ export function PenerimaanTable() {
 
             <div className="flex items-center justify-between border-t border-border px-6 py-4">
               <p className="text-xs text-muted-foreground">
-                Status akan ditentukan otomatis dari qty yang diterima
+                Status ditentukan otomatis dari qty yang diterima
               </p>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
-                >
+                <button type="button" onClick={() => setModalOpen(false)}
+                  className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted">
                   Batal
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                >
+                <button type="button" onClick={handleSubmit} disabled={!selectedPO || saving}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
                   {saved
                     ? <><PackageCheck className="size-4" /> Tersimpan!</>
-                    : <><ScanBarcode className="size-4" /> Simpan Penerimaan</>
+                    : saving
+                      ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</>
+                      : <><ScanBarcode className="size-4" /> Simpan Penerimaan</>
                   }
                 </button>
               </div>
