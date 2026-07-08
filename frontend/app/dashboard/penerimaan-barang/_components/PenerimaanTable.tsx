@@ -73,7 +73,7 @@ export function PenerimaanTable() {
   useEffect(() => {
     fetch('/api/purchase-orders')
       .then(r => r.ok ? r.json() : [])
-      .then((pos: POOption[]) => setAvailablePOs(pos.filter((p: any) => p.status === 'Dikirim')))
+      .then((pos: POOption[]) => setAvailablePOs(pos.filter((p: any) => p.status === 'Diterima')))
       .catch(() => {})
   }, [])
 
@@ -400,7 +400,7 @@ export function PenerimaanTable() {
                         <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-lg border border-border bg-card shadow-lg overflow-hidden">
                           {poSuggestions.length === 0 ? (
                             <p className="px-4 py-3 text-xs text-muted-foreground">
-                              Tidak ada PO dengan status Dikirim yang cocok.
+                              Tidak ada PO dengan status Diterima yang cocok.
                             </p>
                           ) : poSuggestions.map(po => (
                             <button key={po.id} type="button"
