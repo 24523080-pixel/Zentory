@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import {
   ClipboardList, Clock, PackageCheck, XCircle, PlusCircle,
   Search, Eye, Trash2, X, Save, Check, Plus, Minus,
@@ -67,6 +67,9 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   )
 }
 
+// ── Product type for autocomplete ──────────────────────────────
+interface ProductOption { id: string; sku: string; name: string; hargaBeli: number }
+
 // ── Main export ────────────────────────────────────────────────
 export function POManager({ role = 'admin' }: { role?: string }) {
   const isManager = role === 'manager'
@@ -84,6 +87,12 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   const [page, setPage]     = useState(1)
   const [keyCounter, setKeyCounter] = useState(1000)
 
+  // SKU autocomplete
+  const [products, setProducts]         = useState<ProductOption[]>([])
+  const [openDropdown, setOpenDropdown] = useState<number | null>(null)
+  const [lockedKeys, setLockedKeys]     = useState<Set<number>>(new Set())
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
   const loadOrders = useCallback(async () => {
     setLoading(true)
     try {
@@ -98,6 +107,22 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   }, [])
 
   useEffect(() => { loadOrders() }, [loadOrders])
+
+  // Load products for SKU autocomplete
+  useEffect(() => {
+    fetch('/api/products').then(r => r.ok ? r.json() : []).then(setProducts).catch(() => {})
+  }, [])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   // ── Summary ──────────────────────────────────────────────────
   const total      = orders.length
@@ -128,9 +153,48 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   function changeTab(t: string) { setTab(t); setPage(1) }
 
   // ── Modal helpers ─────────────────────────────────────────────
-  function openCreate() { setForm(newForm()); setErrors({}); setSaved(false); setModal({ type: 'create' }) }
+  function openCreate() {
+    setForm(newForm())
+    setErrors({})
+    setSaved(false)
+    setLockedKeys(new Set())
+    setOpenDropdown(null)
+    setModal({ type: 'create' })
+  }
   function openDelete(po: PurchaseOrder) { setModal({ type: 'delete', po }) }
-  function closeModal() { setModal(null); setSaved(false) }
+  function closeModal() { setModal(null); setSaved(false); setLockedKeys(new Set()) }
+
+  // ── SKU autocomplete ──────────────────────────────────────────
+  function getSuggestions(skuInput: string): ProductOption[] {
+    if (!skuInput.trim()) return products.slice(0, 8)
+    const q = skuInput.toLowerCase()
+    return products.filter(p =>
+      p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
+    ).slice(0, 8)
+  }
+
+  function selectProduct(key: number, product: ProductOption) {
+    setForm(f => ({
+      ...f,
+      items: f.items.map(i => i._key === key
+        ? { ...i, sku: product.sku, productName: product.name, hargaSatuan: product.hargaBeli }
+        : i
+      ),
+    }))
+    setLockedKeys(prev => new Set([...prev, key]))
+    setOpenDropdown(null)
+  }
+
+  function unlockItem(key: number) {
+    setLockedKeys(prev => { const s = new Set(prev); s.delete(key); return s })
+    setForm(f => ({
+      ...f,
+      items: f.items.map(i => i._key === key
+        ? { ...i, sku: '', productName: '', hargaSatuan: 0 }
+        : i
+      ),
+    }))
+  }
 
   useEffect(() => {
     if (!modal) return
@@ -440,36 +504,86 @@ export function POManager({ role = 'admin' }: { role?: string }) {
                 </div>
 
                 {/* Item rows */}
-                <div className="space-y-2">
-                  {form.items.map((item, idx) => (
-                    <div key={item._key} className="grid grid-cols-[1fr_120px_100px_120px_28px] gap-2 items-start">
-                      <div>
-                        <Input value={item.productName}
-                          onChange={e => updateItem(item._key, 'productName', e.target.value)}
-                          placeholder="cth: Kopi Arabica 250g"
-                          className={`text-sm ${errors[`item_${idx}_name`] ? 'border-destructive' : ''}`} />
+                <div className="space-y-2" ref={dropdownRef}>
+                  {form.items.map((item, idx) => {
+                    const locked      = lockedKeys.has(item._key)
+                    const suggestions = getSuggestions(item.sku)
+                    const isOpen      = openDropdown === item._key
+
+                    return (
+                      <div key={item._key} className="grid grid-cols-[1fr_120px_100px_120px_28px] gap-2 items-start">
+
+                        {/* Nama Produk — read-only saat locked */}
+                        <div>
+                          <Input value={item.productName}
+                            onChange={e => updateItem(item._key, 'productName', e.target.value)}
+                            placeholder="cth: Kopi Arabica 250g"
+                            readOnly={locked}
+                            className={`text-sm ${locked ? 'bg-muted/50 cursor-not-allowed' : ''} ${errors[`item_${idx}_name`] ? 'border-destructive' : ''}`} />
+                        </div>
+
+                        {/* SKU — dengan dropdown autocomplete */}
+                        <div className="relative">
+                          {locked ? (
+                            <div className="flex items-center gap-1">
+                              <Input value={item.sku} readOnly
+                                className="font-mono text-xs bg-muted/50 cursor-not-allowed flex-1" />
+                              <button type="button" onClick={() => unlockItem(item._key)}
+                                title="Ubah produk"
+                                className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                                <X className="size-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <Input value={item.sku}
+                                onChange={e => {
+                                  updateItem(item._key, 'sku', e.target.value.toUpperCase())
+                                  setOpenDropdown(item._key)
+                                }}
+                                onFocus={() => setOpenDropdown(item._key)}
+                                placeholder="KOP-ARB-250"
+                                className={`font-mono text-xs ${errors[`item_${idx}_sku`] ? 'border-destructive' : ''}`} />
+                              {isOpen && suggestions.length > 0 && (
+                                <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-card shadow-lg overflow-hidden">
+                                  {suggestions.map(p => (
+                                    <button key={p.id} type="button"
+                                      onMouseDown={() => selectProduct(item._key, p)}
+                                      className="flex w-full flex-col px-3 py-2 text-left hover:bg-muted transition-colors border-b border-border/50 last:border-0">
+                                      <span className="font-mono text-xs font-medium text-primary">{p.sku}</span>
+                                      <span className="text-xs text-muted-foreground truncate">{p.name}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+
+                        {/* Qty — selalu bisa diubah */}
+                        <div>
+                          <Input type="number" min="1" value={item.qty || ''}
+                            onChange={e => updateItem(item._key, 'qty', Number(e.target.value))}
+                            placeholder="0"
+                            className={`text-sm ${errors[`item_${idx}_qty`] ? 'border-destructive' : ''}`} />
+                        </div>
+
+                        {/* Harga Satuan — read-only saat locked */}
+                        <div>
+                          <Input type="number" min="0" value={item.hargaSatuan || ''}
+                            onChange={e => updateItem(item._key, 'hargaSatuan', Number(e.target.value))}
+                            placeholder="0" readOnly={locked}
+                            className={`text-sm ${locked ? 'bg-muted/50 cursor-not-allowed' : ''} ${errors[`item_${idx}_harga`] ? 'border-destructive' : ''}`} />
+                        </div>
+
+                        <button type="button" onClick={() => { removeItem(item._key); unlockItem(item._key) }}
+                          disabled={form.items.length === 1}
+                          className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30 transition-colors">
+                          <Minus className="size-3.5" />
+                        </button>
                       </div>
-                      <div>
-                        <Input value={item.sku}
-                          onChange={e => updateItem(item._key, 'sku', e.target.value.toUpperCase())}
-                          placeholder="KOP-ARB-250" className={`font-mono text-xs ${errors[`item_${idx}_sku`] ? 'border-destructive' : ''}`} />
-                      </div>
-                      <div>
-                        <Input type="number" min="1" value={item.qty || ''}
-                          onChange={e => updateItem(item._key, 'qty', Number(e.target.value))}
-                          placeholder="0" className={`text-sm ${errors[`item_${idx}_qty`] ? 'border-destructive' : ''}`} />
-                      </div>
-                      <div>
-                        <Input type="number" min="0" value={item.hargaSatuan || ''}
-                          onChange={e => updateItem(item._key, 'hargaSatuan', Number(e.target.value))}
-                          placeholder="0" className={`text-sm ${errors[`item_${idx}_harga`] ? 'border-destructive' : ''}`} />
-                      </div>
-                      <button type="button" onClick={() => removeItem(item._key)} disabled={form.items.length === 1}
-                        className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30 transition-colors">
-                        <Minus className="size-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
                 <button type="button" onClick={addItem}
