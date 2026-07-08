@@ -5,13 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Boxes, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-
-const DEMO_ACCOUNTS = [
-  { label: 'Manager', email: 'manager@zentory.id', password: 'manager123' },
-  { label: 'Admin',   email: 'admin@zentory.id',   password: 'admin123'   },
-  { label: 'Kasir',   email: 'kasir@zentory.id',   password: 'kasir123'   },
-]
 
 export default function LoginPage() {
   const router = useRouter()
@@ -20,12 +13,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError]               = useState('')
   const [loading, setLoading]           = useState(false)
-
-  function fillDemo(acc: (typeof DEMO_ACCOUNTS)[0]) {
-    setEmail(acc.email)
-    setPassword(acc.password)
-    setError('')
-  }
 
   async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault()
@@ -241,31 +228,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* ── Demo quick-fill badges ── */}
-            <div className="mt-6 border-t border-border pt-5">
-              <p className="mb-2.5 text-xs font-medium text-muted-foreground">
-                Coba dengan akun demo — klik untuk mengisi otomatis:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {DEMO_ACCOUNTS.map((acc) => (
-                  <button
-                    key={acc.label}
-                    type="button"
-                    onClick={() => fillDemo(acc)}
-                    className={cn(
-                      'inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border',
-                      'bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground',
-                      'transition-all duration-150',
-                      'hover:border-primary/30 hover:bg-primary/10 hover:text-primary',
-                      'active:scale-95',
-                    )}
-                  >
-                    <span className="size-1.5 rounded-full bg-chart-3" aria-hidden="true" />
-                    {acc.label}
-                  </button>
-                ))}
-              </div>
-            </div>
             </div>{/* end card */}
 
           </div>
