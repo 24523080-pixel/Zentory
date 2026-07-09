@@ -36,6 +36,34 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const all  = await prisma.purchaseOrder.findMany({ select: { noPO: true } })
 
+  // Validasi: cek SKU yang diketik manual vs nama di katalog
+  const bodyItems = body.items as { sku: string; productName: string }[]
+  const skus = [...new Set(bodyItems.map(i => i.sku).filter(Boolean))]
+  const existingProducts = await prisma.product.findMany({
+    where: { sku: { in: skus } },
+    select: { sku: true, name: true },
+  })
+  const conflicts = existingProducts
+    .filter(p => {
+      const incomingName = bodyItems.find(i => i.sku === p.sku)?.productName ?? ''
+      return incomingName.trim().toLowerCase() !== p.name.trim().toLowerCase()
+    })
+    .map(p => ({
+      sku:         p.sku,
+      namaKatalog: p.name,
+      namaPO:      bodyItems.find(i => i.sku === p.sku)?.productName ?? '',
+    }))
+
+  if (conflicts.length > 0) {
+    return NextResponse.json(
+      {
+        message: 'Konflik nama produk ditemukan. Periksa SKU berikut sebelum menyimpan PO.',
+        conflicts,
+      },
+      { status: 409 },
+    )
+  }
+
   const order = await prisma.purchaseOrder.create({
     data: {
       noPO:        nextNoPO(all),

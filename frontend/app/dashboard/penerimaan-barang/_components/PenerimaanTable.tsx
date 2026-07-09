@@ -68,6 +68,7 @@ export function PenerimaanTable() {
   const [formCatatan, setFormCatatan] = useState('')
   const [formItems, setFormItems]     = useState<ItemRow[]>([])
   const [errors, setErrors]           = useState<Record<string, string>>({})
+  const [conflicts, setConflicts]     = useState<{ sku: string; namaKatalog: string; namaPO: string }[]>([])
 
   // Load POs dengan status Dikirim untuk autocomplete
   useEffect(() => {
@@ -135,6 +136,7 @@ export function PenerimaanTable() {
     setFormCatatan('')
     setFormItems([])
     setErrors({})
+    setConflicts([])
     setSaved(false)
     setSaving(false)
     setModalOpen(true)
@@ -153,6 +155,7 @@ export function PenerimaanTable() {
 
   async function handleSubmit() {
     if (!validate() || !selectedPO) return
+    setConflicts([])
     setSaving(true)
     const items = formItems.map(({ _key, ...rest }) => ({
       ...rest,
@@ -169,7 +172,10 @@ export function PenerimaanTable() {
         items,
       }),
     })
-    if (res.ok) {
+    if (res.status === 409) {
+      const data = await res.json()
+      setConflicts(data.conflicts ?? [])
+    } else if (res.ok) {
       const created: Penerimaan = await res.json()
       setList(prev => [created, ...prev])
       setSaved(true)
@@ -462,6 +468,33 @@ export function PenerimaanTable() {
                 <div className="rounded-lg border border-dashed border-border py-8 text-center">
                   <ScanBarcode className="mx-auto mb-2 size-8 text-muted-foreground/40" />
                   <p className="text-xs text-muted-foreground">Pilih No. PO di atas untuk memuat daftar item</p>
+                </div>
+              )}
+
+              {/* Konflik nama produk */}
+              {conflicts.length > 0 && (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-2">
+                  <p className="text-xs font-semibold text-destructive">
+                    SKU sudah terdaftar dengan nama berbeda — periksa data di Purchase Order
+                  </p>
+                  <div className="space-y-1.5">
+                    {conflicts.map(c => (
+                      <div key={c.sku} className="grid grid-cols-[80px_1fr_1fr] gap-2 text-xs">
+                        <span className="font-mono font-medium text-destructive">{c.sku}</span>
+                        <span className="text-muted-foreground">
+                          <span className="text-[10px] uppercase tracking-wide mr-1">Katalog:</span>
+                          <span className="font-medium text-foreground">{c.namaKatalog}</span>
+                        </span>
+                        <span className="text-muted-foreground">
+                          <span className="text-[10px] uppercase tracking-wide mr-1">Di PO:</span>
+                          <span className="font-medium text-destructive">{c.namaPO}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Perbaiki nama produk di Purchase Order terlebih dahulu agar sesuai dengan katalog, lalu coba simpan lagi.
+                  </p>
                 </div>
               )}
 

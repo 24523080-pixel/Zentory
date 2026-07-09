@@ -27,6 +27,34 @@ export async function POST(req: NextRequest) {
   const all  = await prisma.penerimaan.findMany({ select: { noPenerimaan: true } })
 
   const items = body.items as { sku: string; productName: string; qtyPO: number; qtyDiterima: number }[]
+
+  // Validasi: cek apakah ada SKU yang sudah terdaftar dengan nama produk berbeda
+  const skus = [...new Set(items.map(i => i.sku))]
+  const existingProducts = await prisma.product.findMany({
+    where: { sku: { in: skus } },
+    select: { sku: true, name: true },
+  })
+  const conflicts = existingProducts
+    .filter(p => {
+      const incomingName = items.find(i => i.sku === p.sku)?.productName ?? ''
+      return incomingName.trim().toLowerCase() !== p.name.trim().toLowerCase()
+    })
+    .map(p => ({
+      sku:          p.sku,
+      namaKatalog:  p.name,
+      namaPO:       items.find(i => i.sku === p.sku)?.productName ?? '',
+    }))
+
+  if (conflicts.length > 0) {
+    return NextResponse.json(
+      {
+        message: 'Konflik nama produk ditemukan. Periksa SKU berikut sebelum menyimpan.',
+        conflicts,
+      },
+      { status: 409 },
+    )
+  }
+
   const hasSelisih   = items.some(i => i.qtyDiterima < i.qtyPO)
   const hasDiterima  = items.some(i => i.qtyDiterima > 0)
   const status = !hasDiterima ? 'Menunggu' : hasSelisih ? 'Ada Selisih' : 'Diterima'
@@ -48,12 +76,29 @@ export async function POST(req: NextRequest) {
     include: { items: true },
   })
 
-  // Update stok produk yang diterima
+  // Ambil hargaSatuan per SKU dari PO untuk produk baru
+  const poRecord = await prisma.purchaseOrder.findFirst({
+    where: { noPO: body.noPO },
+    include: { items: true },
+  })
+  const poItemMap = new Map(poRecord?.items.map(i => [i.sku, i.hargaSatuan]) ?? [])
+
+  // Upsert produk: jika sudah ada → increment stok; jika belum → buat produk baru
   for (const item of items) {
     if (item.qtyDiterima > 0) {
-      await prisma.product.updateMany({
-        where: { sku: item.sku },
-        data:  { stok: { increment: item.qtyDiterima } },
+      const hargaBeli = poItemMap.get(item.sku) ?? 0
+      await prisma.product.upsert({
+        where:  { sku: item.sku },
+        update: { stok: { increment: item.qtyDiterima } },
+        create: {
+          sku:        item.sku,
+          name:       item.productName,
+          kategori:   'Lainnya',
+          hargaBeli,
+          hargaJual:  0,
+          stok:       item.qtyDiterima,
+          rop:        0,
+        },
       })
     }
   }

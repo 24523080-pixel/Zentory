@@ -79,7 +79,8 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   const [loading, setLoading] = useState(true)
   const [modal, setModal]   = useState<ModalState>(null)
   const [form, setForm]     = useState<FormData>(newForm())
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [errors, setErrors]       = useState<Record<string, string>>({})
+  const [conflicts, setConflicts] = useState<{ sku: string; namaKatalog: string; namaPO: string }[]>([])
   const [saved, setSaved]   = useState(false)
   const [saving, setSaving] = useState(false)
   const [query, setQuery]   = useState('')
@@ -156,6 +157,7 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   function openCreate() {
     setForm(newForm())
     setErrors({})
+    setConflicts([])
     setSaved(false)
     setLockedKeys(new Set())
     setOpenDropdown(null)
@@ -238,6 +240,7 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   // ── Create PO ─────────────────────────────────────────────────
   async function handleCreate() {
     if (!validate()) return
+    setConflicts([])
     setSaving(true)
     try {
       const res = await fetch('/api/purchase-orders', {
@@ -249,7 +252,10 @@ export function POManager({ role = 'admin' }: { role?: string }) {
           items:    form.items.map(({ _key, ...rest }) => rest),
         }),
       })
-      if (res.ok) {
+      if (res.status === 409) {
+        const data = await res.json()
+        setConflicts(data.conflicts ?? [])
+      } else if (res.ok) {
         const created: PurchaseOrder = await res.json()
         setOrders(prev => [created, ...prev])
         setSaved(true)
@@ -591,6 +597,33 @@ export function POManager({ role = 'admin' }: { role?: string }) {
                   <Plus className="size-3.5" /> Tambah Item
                 </button>
               </div>
+
+              {/* Konflik nama produk */}
+              {conflicts.length > 0 && (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-2">
+                  <p className="text-xs font-semibold text-destructive">
+                    SKU sudah terdaftar dengan nama berbeda — perbaiki sebelum menyimpan
+                  </p>
+                  <div className="space-y-1.5">
+                    {conflicts.map(c => (
+                      <div key={c.sku} className="grid grid-cols-[80px_1fr_1fr] gap-2 text-xs">
+                        <span className="font-mono font-medium text-destructive">{c.sku}</span>
+                        <span className="text-muted-foreground">
+                          <span className="text-[10px] uppercase tracking-wide mr-1">Katalog:</span>
+                          <span className="font-medium text-foreground">{c.namaKatalog}</span>
+                        </span>
+                        <span className="text-muted-foreground">
+                          <span className="text-[10px] uppercase tracking-wide mr-1">Diinput:</span>
+                          <span className="font-medium text-destructive">{c.namaPO}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Gunakan autocomplete SKU agar nama produk sesuai katalog, atau perbaiki nama secara manual.
+                  </p>
+                </div>
+              )}
 
               {/* Total preview */}
               {formTotal > 0 && (
