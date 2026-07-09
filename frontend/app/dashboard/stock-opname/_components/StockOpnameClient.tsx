@@ -48,6 +48,10 @@ function formatTanggal(iso: string) {
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function formatRupiah(n: number) {
+  return 'Rp ' + n.toLocaleString('id-ID')
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface Props { role: string }
