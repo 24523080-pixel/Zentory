@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { Mail, Sparkles, X, Copy, Check, ExternalLink, Loader2, AlertCircle } from 'lucide-react'
-import type { PurchaseOrder } from '../../_data'
+interface PurchaseOrder {
+  id: string; noPO: string; supplier: string; tanggal: string; status: string
+  items: { productName: string; sku: string; qty: number; hargaSatuan: number }[]
+}
 
 interface EmailDraft {
   subject: string

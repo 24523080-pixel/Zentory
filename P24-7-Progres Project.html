@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>P24-7-Progres Project</title>
+<style>
+  body {
+    font-family: Calibri, Arial, sans-serif;
+    font-size: 11pt;
+    margin: 2.5cm;
+    color: #1a1a1a;
+    line-height: 1.5;
+  }
+  h1 { font-size: 20pt; color: #5b21b6; margin-bottom: 4pt; }
+  h2 { font-size: 14pt; color: #5b21b6; border-bottom: 2px solid #7c3aed; padding-bottom: 4pt; margin-top: 24pt; margin-bottom: 10pt; }
+  h3 { font-size: 12pt; color: #4c1d95; margin-top: 16pt; margin-bottom: 6pt; }
+  h4 { font-size: 11pt; color: #1a1a1a; margin-top: 12pt; margin-bottom: 4pt; }
+  p  { margin: 6pt 0; }
+
+  table { border-collapse: collapse; width: 100%; margin: 10pt 0; font-size: 10pt; }
+  th { background-color: #7c3aed; color: white; padding: 6pt 10pt; text-align: left; }
+  td { border: 1px solid #d1d5db; padding: 5pt 10pt; vertical-align: top; }
+  tr:nth-child(even) td { background-color: #f5f0ff; }
+
+  pre {
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 9pt;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-left: 4px solid #7c3aed;
+    padding: 8pt 10pt;
+    white-space: pre-wrap;
+    margin: 8pt 0;
+  }
+
+  .cover {
+    text-align: center;
+    border: 2px solid #7c3aed;
+    border-radius: 8px;
+    padding: 32pt 24pt;
+    margin-bottom: 36pt;
+    background: #faf5ff;
+  }
+  .cover-title  { font-size: 22pt; font-weight: bold; color: #5b21b6; margin: 0; }
+  .cover-sub    { font-size: 13pt; color: #6b7280; margin-top: 6pt; }
+  .cover-badge  { display: inline-block; background: #7c3aed; color: white; padding: 3pt 12pt; border-radius: 20px; font-size: 10pt; margin-top: 12pt; }
+  .cover-info   { margin-top: 20pt; font-size: 11pt; color: #374151; }
+  .cover-info b { color: #4c1d95; }
+
+  .done    { color: #16a34a; font-weight: bold; }
+  .pending { color: #9ca3af; }
+  .note {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 8pt 12pt;
+    margin: 12pt 0;
+    font-size: 10pt;
+    border-radius: 0 4px 4px 0;
+  }
+  .section-box {
+    border: 1px solid #e9d5ff;
+    border-radius: 6px;
+    padding: 12pt 14pt;
+    margin: 10pt 0;
+    background: #fdfbff;
+  }
+  .screenshot-placeholder {
+    border: 2px dashed #c4b5fd;
+    border-radius: 6px;
+    padding: 20pt;
+    text-align: center;
+    color: #7c3aed;
+    font-size: 10pt;
+    margin: 8pt 0;
+    background: #f5f0ff;
+  }
+  hr { border: none; border-top: 1px solid #e5e7eb; margin: 20pt 0; }
+  .pct-bar-wrap { background: #e9d5ff; border-radius: 4px; height: 10pt; display: inline-block; width: 100px; vertical-align: middle; }
+  ul { margin: 6pt 0; padding-left: 18pt; }
+  li { margin: 3pt 0; }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <p class="cover-title">Zentory</p>
+  <p class="cover-sub">Sistem Manajemen Inventori Pintar untuk Ritel &amp; UMKM</p>
+  <div class="cover-badge">Kelompok 7</div>
+  <div class="cover-info">
+    <p><b>Mata Kuliah:</b> Perancangan Sistem Informasi (PSI)</p>
+    <p><b>Tugas:</b> P24 — Progres Project</p>
+    <p><b>Tanggal:</b> 29 Juni 2026</p>
+    <br>
+    <table style="width:60%;margin:auto;border:none;">
+      <tr>
+        <th style="background:#4c1d95;">NIM</th>
+        <th style="background:#4c1d95;">Nama</th>
+      </tr>
+      <tr><td>24523080</td><td>Azzikri Assidqi Samani</td></tr>
+      <tr><td>24523231</td><td>Muhamad Rafi Raditya</td></tr>
+      <tr><td>24523171</td><td>Dylan Ammar Ori Axniva</td></tr>
+      <tr><td>24523147</td><td>Muhammad Zayyan Achnaf</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== 1. TOTAL FITUR ===================== -->
+<h2>1. Total Fitur Sistem</h2>
+
+<p>
+  Zentory dibangun berdasarkan PRD v0.3 dengan <b>14 Functional Requirements (FR)</b>,
+  <b>1 Non-Functional Requirement keamanan (NFR-002)</b>, dan <b>1 fitur LLM/AI</b>.
+  Sistem mencakup 3 role pengguna: <b>Manager</b>, <b>Admin Staff</b>, dan <b>Kasir</b>.
+</p>
+
+<table>
+  <tr>
+    <th>#</th><th>Modul / Fitur</th><th>FR Terkait</th><th>Role Pengguna</th>
+  </tr>
+  <tr><td>1</td><td>Auto-Draft Purchase Order saat Stok ≤ Reorder Point</td><td>FR-01</td><td>Sistem (otomatis)</td></tr>
+  <tr><td>2</td><td>Catat Retur Penjualan (Sales Return)</td><td>FR-02</td><td>Kasir</td></tr>
+  <tr><td>3</td><td>Penerimaan Barang &amp; Validasi vs PO</td><td>FR-03, FR-11</td><td>Admin Staff</td></tr>
+  <tr><td>4</td><td>Klasifikasi Fast / Slow / Dead Stock (Analitik)</td><td>FR-04</td><td>Manager</td></tr>
+  <tr><td>5</td><td>POS / Transaksi Penjualan + Pengurangan Stok Otomatis</td><td>FR-05, FR-08</td><td>Kasir</td></tr>
+  <tr><td>6</td><td>Freeze Stok Saat Cycle Counting</td><td>FR-06</td><td>Admin Staff</td></tr>
+  <tr><td>7</td><td>Stock Opname — Input Fisik &amp; Hitung Variance</td><td>FR-07</td><td>Admin Staff</td></tr>
+  <tr><td>8</td><td>Otorisasi Stock Adjustment oleh Manager (2FA TOTP)</td><td>FR-09, NFR-002</td><td>Manager</td></tr>
+  <tr><td>9</td><td>Dashboard Visualisasi Tren Stok &amp; Penjualan</td><td>FR-10</td><td>Manager</td></tr>
+  <tr><td>10</td><td>Notifikasi Real-time (bell icon)</td><td>FR-12</td><td>Manager, Admin</td></tr>
+  <tr><td>11</td><td>Update Stok Otomatis setelah Retur Disetujui</td><td>FR-13</td><td>Sistem (otomatis)</td></tr>
+  <tr><td>12</td><td>Approve / Reject Draft Purchase Order</td><td>FR-14</td><td>Manager</td></tr>
+  <tr><td>13</td><td>Multi-role RBAC (Manager, Admin Staff, Kasir)</td><td>Auth</td><td>Semua</td></tr>
+  <tr><td>14</td><td><b>Generate Email Pengadaan ke Supplier via AI (GPT-4o-mini)</b></td><td><b>LLM</b></td><td>Manager / Admin</td></tr>
+  <tr><td>15</td><td>Pengaturan Profil, Ganti Password, Setup 2FA</td><td>Settings</td><td>Semua</td></tr>
+</table>
+
+<hr>
+
+<!-- ===================== 2. STATUS PENGERJAAN ===================== -->
+<h2>2. Status Pengerjaan Per Fitur</h2>
+
+<table>
+  <tr><th>FR</th><th>Fitur</th><th>Status</th><th>Progres</th></tr>
+  <tr><td>FR-01</td><td>Auto-Draft PO saat stok ≤ ROP</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-02</td><td>Sales Return — catat retur &amp; karantina stok</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-03</td><td>Penerimaan Barang &amp; validasi vs nomor PO</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-04</td><td>Klasifikasi Fast / Slow / Dead Stock</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-05</td><td>POS — kurangi stok otomatis setelah transaksi</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-06</td><td>Freeze stok area saat cycle counting aktif</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-07</td><td>Stock Opname — input fisik, hitung variance</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-08</td><td>Warning "Stok Tidak Tersedia" di POS</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-09</td><td>Otorisasi Manager untuk stock adjustment</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-10</td><td>Dashboard tren stok &amp; aktivitas pengadaan</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-11</td><td>Riwayat penerimaan barang + detail PO</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-12</td><td>Notifikasi real-time ke Admin &amp; Manager</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-13</td><td>Stok dikembalikan otomatis setelah retur disetujui</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>FR-14</td><td>Approve / Reject draft PO oleh Manager</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>NFR-002</td><td>2FA TOTP Google Authenticator (stock adjustment &gt;10%)</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>LLM</td><td>Generate Email Pengadaan ke Supplier (GPT-4o-mini)</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>MIS</td><td>Dashboard, Analitik, Notifikasi, Laporan</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>NFR-001</td><td>Load test 500 concurrent users (k6)</td><td class="pending">⬜ Out of Scope MVP</td><td>—</td></tr>
+  <tr><td>—</td><td>Offline-resilient (cache lokal + sync)</td><td class="pending">⬜ Out of Scope MVP</td><td>—</td></tr>
+</table>
+
+<hr>
+
+<!-- ===================== 3. DETAIL PER FITUR ===================== -->
+<h2>3. Detail Per Fitur — Database, Interface, &amp; Kode</h2>
+
+<!-- ---- FR-01 ---- -->
+<h3>FR-01 — Auto-Draft Purchase Order saat Stok ≤ Reorder Point</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>Product</b>: <code>id, sku, name, stok, rop, hargaBeli</code></li>
+    <li><b>PurchaseOrder</b>: <code>id, noPO, supplier, tanggal, status, createdById</code></li>
+    <li><b>POItem</b>: <code>id, poId, productName, sku, qty, hargaSatuan</code></li>
+    <li><b>Notification</b>: <code>id, targetRole, title, message, type, link</code></li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Purchase Order — tampilkan Draft PO yang dibuat otomatis ]
+  </div>
+
+  <h4>Kode — <code>frontend/app/api/pos/route.ts</code></h4>
+<pre>if (newStok &lt;= product.rop) {
+  const noPO = `PO-${new Date().getFullYear()}-${String(nextNum).padStart(3, '0')}`
+  await prisma.purchaseOrder.create({
+    data: {
+      noPO,
+      supplier:    'Perlu Ditentukan',
+      tanggal:     new Date(),
+      status:      'Draft',
+      createdById: session.id,
+      items: { create: [{ productName: product.name, sku: product.sku,
+                          qty: product.rop * 2, hargaSatuan: product.hargaBeli }] },
+    },
+  })
+  await prisma.notification.create({
+    data: {
+      targetRole: 'manager',
+      title:      `Auto Draft PO: ${product.name}`,
+      message:    `Stok mencapai ROP (sisa ${newStok}). Draft PO ${noPO} dibuat otomatis.`,
+      type:       'warning',
+      link:       '/dashboard/purchase-order',
+    },
+  })
+}</pre>
+</div>
+
+<!-- ---- FR-02 & FR-13 ---- -->
+<h3>FR-02 &amp; FR-13 — Sales Return + Update Stok Otomatis</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>SalesReturn</b>: <code>id, noReturn, status, inspeksiOleh, catatanInspeksi, disetujuiOleh</code></li>
+    <li><b>SalesReturnItem</b>: <code>id, returnId, sku, productName, qty, alasan</code></li>
+    <li><b>Product</b>: stok di-increment saat return disetujui Manager</li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Sales Return — list retur, form input, tombol Approve/Reject ]
+  </div>
+
+  <h4>Kode — <code>frontend/app/api/sales-return/[id]/status/route.ts</code></h4>
+<pre>if (status === 'Disetujui') {
+  for (const item of ret.items) {
+    await prisma.product.updateMany({
+      where: { sku: item.sku },
+      data:  { stok: { increment: item.qty } },
+    })
+  }
+  await prisma.notification.create({
+    data: {
+      targetRole: 'kasir',
+      title:      `Return Disetujui: ${ret.noReturn}`,
+      message:    `Manager menyetujui return. Stok produk sudah dikembalikan.`,
+      type:       'success',
+    },
+  })
+}</pre>
+</div>
+
+<!-- ---- FR-03 & FR-11 ---- -->
+<h3>FR-03 &amp; FR-11 — Penerimaan Barang &amp; Riwayat</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>PurchaseOrder</b>: status diupdate ke <code>'Diterima'</code></li>
+    <li><b>POItem</b>: data item yang diterima</li>
+    <li><b>Product</b>: stok di-increment sesuai qty yang diterima</li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Penerimaan Barang — list PO yang disetujui, form input qty diterima ]
+  </div>
+
+  <h4>Kode — <code>frontend/app/api/penerimaan/route.ts</code></h4>
+<pre>for (const item of items) {
+  await prisma.product.updateMany({
+    where: { sku: item.sku },
+    data:  { stok: { increment: item.qtyDiterima } },
+  })
+}
+await prisma.purchaseOrder.update({
+  where: { id: poId },
+  data:  { status: 'Diterima' },
+})</pre>
+</div>
+
+<!-- ---- FR-04 ---- -->
+<h3>FR-04 — Klasifikasi Fast / Slow / Dead Stock</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>Product</b>: <code>stok, hargaBeli, createdAt, category</code></li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Analitik — tabel/chart Fast/Slow/Dead Stock dengan label per produk ]
+  </div>
+
+  <h4>Logika Klasifikasi — <code>frontend/app/dashboard/analitik/_data.ts</code></h4>
+<pre>// Fast Moving  : stok saat ini < 30% dari rata-rata stok semua produk
+// Slow Moving  : stok saat ini > 70% dari rata-rata stok semua produk
+// Dead Stock   : stok sangat tinggi & produk sudah > 30 hari terdaftar
+// New Product  : produk < 30 hari → ditampilkan "Insufficient Data"</pre>
+</div>
+
+<!-- ---- FR-05 & FR-08 ---- -->
+<h3>FR-05 &amp; FR-08 — POS / Transaksi Penjualan</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>Product</b>: stok di-decrement setelah transaksi selesai</li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman POS — keranjang belanja, tombol checkout, warning stok habis ]
+  </div>
+
+  <h4>Kode — <code>frontend/app/api/pos/route.ts</code></h4>
+<pre>if (product.stok &lt; item.qty) {
+  return NextResponse.json(
+    { message: `Stok ${product.name} tidak cukup (tersisa ${product.stok})` },
+    { status: 400 }
+  )
+}
+// FR-06: Blokir jika produk sedang dalam cycle counting
+const frozenOpname = await prisma.stockOpnameItem.findFirst({
+  where: { productId: item.productId, opname: { status: 'Aktif' } },
+})
+if (frozenOpname) {
+  return NextResponse.json({ message: `${product.name} sedang dalam cycle counting.` }, { status: 400 })
+}
+const newStok = product.stok - item.qty
+await prisma.product.update({ where: { id: item.productId }, data: { stok: newStok } })</pre>
+</div>
+
+<!-- ---- FR-06 & FR-07 & FR-09 ---- -->
+<h3>FR-06, FR-07, FR-09 &amp; NFR-002 — Stock Opname + 2FA TOTP</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>StockOpname</b>: <code>id, area, status ('Aktif'/'Selesai'), createdById</code></li>
+    <li><b>StockOpnameItem</b>: <code>id, opnameId, productId, stokSistem, stokFisik, variance</code></li>
+    <li><b>User</b>: <code>totpSecret TEXT</code> — secret TOTP Manager untuk 2FA</li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Stock Opname — form input fisik, tabel variance, modal OTP 6-digit ]
+  </div>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Pengaturan → Setup Google Authenticator (QR code + input verifikasi) ]
+  </div>
+
+  <h4>Kode — <code>frontend/app/api/stock-opname/[id]/route.ts</code></h4>
+<pre>// Hitung total variance value
+const pct = Math.abs(totalVarianceValue) / totalInventoryValue * 100
+
+// NFR-002: Jika variance > 10%, wajib verifikasi 2FA Manager
+if (pct > 10) {
+  if (!otp) return NextResponse.json({ requireOTP: true }, { status: 202 })
+  const manager = await prisma.user.findFirst({ where: { role: 'manager' } })
+  if (!manager?.totpSecret)
+    return NextResponse.json({ message: 'Manager belum setup 2FA' }, { status: 400 })
+  const ok = verifyTOTP(otp, manager.totpSecret)
+  if (!ok) return NextResponse.json({ message: 'Kode OTP tidak valid' }, { status: 401 })
+}</pre>
+
+  <h4>Implementasi TOTP — <code>frontend/lib/totp.ts</code></h4>
+<pre>// Pure Node.js crypto — tanpa library eksternal
+import { createHmac, randomBytes } from 'crypto'
+
+export function verifyTOTP(token: string, secret: string): boolean {
+  const step = Math.floor(Date.now() / 30_000)
+  return [-1, 0, 1].some((w) => getCode(secret, step + w) === token)
+}</pre>
+</div>
+
+<!-- ---- FR-10 ---- -->
+<h3>FR-10 — Dashboard Visualisasi Tren Stok &amp; Penjualan</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>Product</b>: total produk, produk ≤ ROP</li>
+    <li><b>PurchaseOrder</b>: jumlah PO aktif, aktivitas 7 hari</li>
+    <li><b>Notification</b>: feed aktivitas terbaru</li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Dashboard — kartu KPI, bar chart aktivitas pengadaan, feed aktivitas terbaru ]
+  </div>
+
+  <h4>Kode — <code>frontend/app/api/dashboard/route.ts</code></h4>
+<pre>const [totalProduk, produkBawahROP, poAktif, recentActivity] = await Promise.all([
+  prisma.product.count(),
+  prisma.product.count({ where: { stok: { lte: prisma.product.fields.rop } } }),
+  prisma.purchaseOrder.count({ where: { status: { in: ['Draft', 'Dikirim'] } } }),
+  prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
+])</pre>
+</div>
+
+<!-- ---- FR-12 ---- -->
+<h3>FR-12 — Notifikasi Real-time</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>Notification</b>: <code>id, targetRole, title, message, type, isRead, link, createdAt</code></li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Bell icon dengan badge unread, halaman Notifikasi — list semua notifikasi ]
+  </div>
+</div>
+
+<!-- ---- FR-14 ---- -->
+<h3>FR-14 — Approve / Reject Draft Purchase Order</h3>
+<div class="section-box">
+  <h4>Database yang Terlibat</h4>
+  <ul>
+    <li><b>PurchaseOrder</b>: status diupdate: <code>Draft → Disetujui / Ditolak → Dikirim → Diterima</code></li>
+  </ul>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Purchase Order — list PO, tombol Approve/Reject, detail PO ]
+  </div>
+
+  <h4>Kode — <code>frontend/app/api/purchase-orders/[id]/status/route.ts</code></h4>
+<pre>await prisma.purchaseOrder.update({
+  where: { id },
+  data:  { status },
+})
+if (status === 'Disetujui') {
+  await prisma.notification.create({
+    data: { targetRole: 'admin', title: `PO Disetujui: ${po.noPO}`,
+            message: `Manager menyetujui PO ${po.noPO}. Siap untuk penerimaan barang.`,
+            type: 'success', link: '/dashboard/penerimaan-barang' }
+  })
+}</pre>
+</div>
+
+<!-- ---- LLM ---- -->
+<h3>Fitur LLM — Generate Email Pengadaan ke Supplier (GPT-4o-mini)</h3>
+<div class="section-box">
+  <p>
+    Fitur AI generatif yang membantu Manager/Admin membuat email pengadaan formal ke supplier
+    secara otomatis berdasarkan data Purchase Order. Menggunakan model <b>GPT-4o-mini</b> dari OpenAI.
+  </p>
+
+  <h4>Alur Penggunaan</h4>
+  <ol>
+    <li>Manager/Admin buka halaman detail Purchase Order</li>
+    <li>Klik tombol <b>"Generate Email AI"</b> (icon bintang)</li>
+    <li>AI membaca data PO (nomor PO, supplier, daftar barang, total nilai)</li>
+    <li>GPT-4o-mini generate email formal dalam Bahasa Indonesia</li>
+    <li>Modal tampilkan subject + isi email, dengan tombol Salin &amp; "Buka di Gmail"</li>
+  </ol>
+
+  <h4>Interface</h4>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman detail PO — tombol "Generate Email AI" ]
+  </div>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Modal hasil email — subject, isi email, tombol Salin &amp; Buka di Gmail ]
+  </div>
+
+  <h4>Kode — <code>frontend/app/api/generate-email/route.ts</code></h4>
+<pre>const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+const prompt = `Kamu adalah asisten bisnis profesional. Tulis email pengadaan barang
+dalam Bahasa Indonesia yang formal dan sopan kepada supplier berdasarkan data PO berikut:
+
+No. PO   : ${po.noPO}
+Supplier : ${po.supplier}
+Daftar Barang: ${itemsList}
+Total Nilai PO: Rp${total.toLocaleString('id-ID')}
+
+Kembalikan HANYA JSON: { "subject": "...", "body": "..." }`
+
+const completion = await openai.chat.completions.create({
+  model:           'gpt-4o-mini',
+  messages:        [{ role: 'user', content: prompt }],
+  response_format: { type: 'json_object' },
+  temperature:     0,
+})</pre>
+</div>
+
+<!-- ---- MIS ---- -->
+<h3>MIS — Dashboard, Analitik, Notifikasi, Laporan</h3>
+<div class="section-box">
+  <p>
+    Zentory secara keseluruhan adalah sistem <b>MIS (Management Information System)</b>
+    untuk pengelolaan inventori. Fitur MIS mencakup:
+  </p>
+  <ul>
+    <li><b>Dashboard real-time</b> — KPI utama: total produk, produk di bawah ROP, PO aktif</li>
+    <li><b>Bar chart</b> — Aktivitas pengadaan 7 hari terakhir</li>
+    <li><b>Analitik Fast/Slow/Dead Stock</b> — Tabel klasifikasi + rekomendasi tindakan</li>
+    <li><b>Histori lengkap</b> — PO, Penerimaan, Stock Opname, Sales Return</li>
+    <li><b>Notifikasi berbasis event</b> — Auto Draft PO, PO Disetujui, Opname Selesai, dll.</li>
+  </ul>
+
+  <div class="screenshot-placeholder">
+    [ Screenshot: Dashboard — KPI cards + bar chart + feed aktivitas ]
+  </div>
+  <div class="screenshot-placeholder">
+    [ Screenshot: Halaman Analitik — tabel Fast/Slow/Dead Stock ]
+  </div>
+</div>
+
+<hr>
+
+<!-- ===================== 4. ESTIMASI PROGRES ===================== -->
+<h2>4. Estimasi Progres Keseluruhan</h2>
+
+<table>
+  <tr><th>Komponen</th><th>Status</th><th>%</th></tr>
+  <tr><td>Frontend — UI semua halaman (Next.js)</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>Backend API — semua endpoint 14 FR</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>Database — Supabase PostgreSQL + Prisma ORM</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>RBAC Multi-role (Manager, Admin, Kasir)</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>MIS — Dashboard, Analitik, Notifikasi, Laporan</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>LLM — Generate Email AI (GPT-4o-mini)</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>NFR-002 — 2FA TOTP Google Authenticator</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>Deployment — Vercel (frontend) + Supabase (DB)</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>Mobile Responsive (hamburger menu + drawer)</td><td class="done">✅ Selesai</td><td>100%</td></tr>
+  <tr><td>NFR-001 — Load test 500 concurrent users (k6)</td><td class="pending">⬜ Out of Scope MVP</td><td>—</td></tr>
+  <tr><td>Offline-resilient (cache lokal + auto sync)</td><td class="pending">⬜ Out of Scope MVP</td><td>—</td></tr>
+</table>
+
+<br>
+<div class="note">
+  <b>Estimasi Total Progres: ~95%</b><br>
+  Seluruh 14 FR Must Have, 1 NFR keamanan (2FA), fitur MIS, dan fitur LLM (Generate Email AI)
+  telah selesai diimplementasikan dan sudah di-deploy ke production (Vercel).
+  Sisa 5% adalah fitur yang secara eksplisit berada di luar scope MVP v0.1 sesuai PRD
+  (NFR-001 load test dan offline-resilient cache), bukan karena belum dikerjakan.
+</div>
+
+<br>
+<p style="text-align:center;color:#9ca3af;font-size:9pt;margin-top:32pt;">
+  Zentory v0.1 — Kelompok 7 — PSI 2026
+</p>
+
+</body>
+</html>

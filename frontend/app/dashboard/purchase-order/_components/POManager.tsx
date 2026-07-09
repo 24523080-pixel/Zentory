@@ -17,8 +17,7 @@ function totalNilai(po: PurchaseOrder) {
 }
 
 // ── Constants ─────────────────────────────────────────────────
-const SUPPLIERS = ['Supplier Maju Jaya', 'Sumber Makmur Dist.', 'Cahaya Ritel Indo', 'Indo Distributor']
-const TABS      = ['Semua', 'Draft', 'Dikirim', 'Diterima', 'Dibatalkan'] as const
+const TABS = ['Semua', 'Draft', 'Dikirim', 'Diterima', 'Dibatalkan'] as const
 const PAGE_SIZE = 6
 
 const STATUS_BADGE: Record<POStatus, string> = {
@@ -88,6 +87,7 @@ export function POManager({ role = 'admin' }: { role?: string }) {
   const [page, setPage]     = useState(1)
   const [keyCounter, setKeyCounter] = useState(1000)
 
+
   // SKU autocomplete
   const [products, setProducts]         = useState<ProductOption[]>([])
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
@@ -138,6 +138,9 @@ export function POManager({ role = 'admin' }: { role?: string }) {
     { label: 'Menunggu Konfirmasi',value: `${dikirim} PO`,          icon: Clock,         accent: 'text-chart-4',           glow: 'bg-chart-4/10'    },
     { label: 'Diterima',           value: `${diterima} PO`,         icon: PackageCheck,  accent: 'text-chart-3',           glow: 'bg-chart-3/10'    },
   ]
+
+  // Supplier suggestions dari PO yang sudah ada
+  const suppliers = useMemo(() => [...new Set(orders.map(o => o.supplier))].sort(), [orders])
 
   // ── Filter & paginate ─────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -485,7 +488,7 @@ export function POManager({ role = 'admin' }: { role?: string }) {
                     className={errors.supplier ? 'border-destructive' : ''}
                   />
                   <datalist id="supplier-list">
-                    {SUPPLIERS.map(s => <option key={s} value={s} />)}
+                    {suppliers.map(s => <option key={s} value={s} />)}
                   </datalist>
                 </Field>
                 <Field label="Tanggal PO *" error={errors.tanggal}>
