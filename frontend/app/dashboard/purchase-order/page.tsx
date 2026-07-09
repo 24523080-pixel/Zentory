@@ -1,10 +1,8 @@
 import { cookies } from 'next/headers'
 import { ClipboardList } from 'lucide-react'
-import { PURCHASE_ORDERS } from './_data'
+import { prisma } from '@/lib/prisma'
 import { POManager } from './_components/POManager'
 import { PageBanner } from '../_components/PageBanner'
-
-const total = PURCHASE_ORDERS.length
 
 export default async function PurchaseOrderPage() {
   const cookieStore = await cookies()
@@ -12,6 +10,9 @@ export default async function PurchaseOrderPage() {
   const role = raw
     ? (JSON.parse(raw) as { role: string }).role
     : 'admin'
+
+  const total    = await prisma.purchaseOrder.count()
+  const dikirim  = await prisma.purchaseOrder.count({ where: { status: 'Dikirim' } })
 
   return (
     <>
@@ -32,8 +33,14 @@ export default async function PurchaseOrderPage() {
         >
           <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
             <ClipboardList className="size-3.5" />
-            {total} PO bulan ini
+            {total} total PO
           </span>
+          {dikirim > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-chart-4/15 px-3 py-1.5 text-xs font-semibold text-chart-4">
+              <ClipboardList className="size-3.5" />
+              {dikirim} menunggu konfirmasi
+            </span>
+          )}
         </PageBanner>
 
         <POManager role={role} />

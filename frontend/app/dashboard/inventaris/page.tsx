@@ -1,12 +1,12 @@
 import { Package, AlertTriangle } from 'lucide-react'
-import { PRODUCTS } from './_data'
+import { prisma } from '@/lib/prisma'
 import { InventarisManager } from './_components/InventarisManager'
 import { PageBanner } from '../_components/PageBanner'
 
-const totalSKU     = PRODUCTS.length
-const perluReorder = PRODUCTS.filter((p) => p.status === 'Reorder' || p.status === 'Kritis').length
-
-export default function InventarisPage() {
+export default async function InventarisPage() {
+  const products     = await prisma.product.findMany({ select: { stok: true, rop: true } })
+  const totalSKU     = products.length
+  const perluReorder = products.filter(p => p.rop > 0 && p.stok <= p.rop).length
   return (
     <>
       <header className="flex h-16 shrink-0 items-center border-b border-border bg-card px-6">
