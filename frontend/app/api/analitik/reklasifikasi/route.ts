@@ -3,8 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSession, requireRole } from '@/lib/auth'
 
 // Threshold (30 hari):
-//   Fast Moving   : total terjual >= 30 unit  (rata-rata >= 1 unit/hari)
-//   Slow Moving   : total terjual 1-29 unit
+//   Fast Moving   : total terjual >= 60 unit  (rata-rata >= 2 unit/hari)
+//   Slow Moving   : total terjual 1-59 unit
 //   Dead Stock    : 0 unit terjual  (produk > 14 hari)
 //   InsufficientData : produk ≤ 14 hari / belum ada data transaksi sama sekali
 
@@ -46,7 +46,7 @@ export async function POST() {
       newKlasifikasi = 'InsufficientData'
     } else if (totalSold30 === 0) {
       newKlasifikasi = 'Dead'
-    } else if (totalSold30 >= 30) {
+    } else if (totalSold30 >= 60) {
       newKlasifikasi = 'Fast'
     } else {
       newKlasifikasi = 'Slow'
