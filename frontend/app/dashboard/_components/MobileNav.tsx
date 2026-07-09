@@ -24,6 +24,7 @@ const NAV_CONFIG: Record<Role, { icon: React.ElementType; label: string; href: s
     { icon: Settings,       label: 'Pengaturan',        href: '/dashboard/pengaturan'        },
   ],
   admin: [
+    { icon: TrendingUp,     label: 'Dashboard',         href: '/dashboard'                     },
     { icon: Package,        label: 'Inventaris',        href: '/dashboard/inventaris'          },
     { icon: ShoppingCart,   label: 'Purchase Order',    href: '/dashboard/purchase-order'      },
     { icon: PackageCheck,   label: 'Penerimaan Barang', href: '/dashboard/penerimaan-barang'   },
