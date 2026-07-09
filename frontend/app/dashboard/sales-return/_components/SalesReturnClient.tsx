@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState, useEffect, useCallback } from 'react'
+import { Fragment, useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus, ChevronDown, ChevronUp,
   CheckCircle2, XCircle, RotateCcw, Trash2, X,
@@ -74,11 +74,52 @@ const EMPTY_ITEM: NewReturnItem = {
   productName: '', sku: '', harga: '', qty: '1', alasan: 'Produk Rusak', catatan: '',
 }
 
+interface ProductOption { id: string; sku: string; name: string; hargaJual: number }
+
 function NewReturnModal({
   onClose, onSubmit,
 }: { onClose: () => void; onSubmit: (noTrx: string, items: ReturnItem[]) => void }) {
-  const [noTrx, setNoTrx] = useState('')
-  const [rows, setRows]   = useState<NewReturnItem[]>([{ ...EMPTY_ITEM }])
+  const [noTrx, setNoTrx]     = useState('')
+  const [rows, setRows]        = useState<NewReturnItem[]>([{ ...EMPTY_ITEM }])
+  const [products, setProducts] = useState<ProductOption[]>([])
+  const [openDrop, setOpenDrop] = useState<number | null>(null)
+  const [lockedRows, setLockedRows] = useState<Set<number>>(new Set())
+  const dropRef = useRef<HTMLTableSectionElement>(null)
+
+  useEffect(() => {
+    fetch('/api/products').then(r => r.ok ? r.json() : []).then(setProducts).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setOpenDrop(null)
+    }
+
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  function getSuggestions(q: string): ProductOption[] {
+    const lower = q.toLowerCase()
+    if (!lower) return products.slice(0, 8)
+    return products.filter(p =>
+      p.name.toLowerCase().includes(lower) || p.sku.toLowerCase().includes(lower)
+    ).slice(0, 8)
+  }
+
+  function selectProduct(idx: number, p: ProductOption) {
+    setRows(prev => prev.map((r, i) => i === idx
+      ? { ...r, productName: p.name, sku: p.sku, harga: String(p.hargaJual) }
+      : r
+    ))
+    setLockedRows(prev => new Set([...prev, idx]))
+    setOpenDrop(null)
+  }
+
+  function unlockRow(idx: number) {
+    setLockedRows(prev => { const s = new Set(prev); s.delete(idx); return s })
+    setRows(prev => prev.map((r, i) => i === idx ? { ...r, productName: '', sku: '', harga: '' } : r))
+  }
 
   function updateRow(idx: number, key: keyof NewReturnItem, val: string) {
     setRows((prev) => prev.map((r, i) => i === idx ? { ...r, [key]: val } : r))
@@ -88,8 +129,7 @@ function NewReturnModal({
     if (!noTrx.trim()) return
     const items: ReturnItem[] = rows
       .filter((r) => r.productName.trim())
-      .map((r, i) => ({
-        productId:   `new-${i}`,
+      .map((r) => ({
         productName: r.productName,
         sku:         r.sku || '-',
         harga:       parseInt(r.harga) || 0,
@@ -137,41 +177,79 @@ function NewReturnModal({
                     <th className="w-8" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
-                  {rows.map((row, idx) => (
-                    <tr key={idx}>
-                      <td className="px-2 py-2">
-                        <Input value={row.productName} onChange={(e) => updateRow(idx, 'productName', e.target.value)}
-                          placeholder="Nama produk" className="h-8 text-xs" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Input type="number" min={1} value={row.qty} onChange={(e) => updateRow(idx, 'qty', e.target.value)}
-                          className="h-8 text-xs text-right" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <Input type="number" min={0} value={row.harga} onChange={(e) => updateRow(idx, 'harga', e.target.value)}
-                          placeholder="0" className="h-8 text-xs text-right" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <select value={row.alasan} onChange={(e) => updateRow(idx, 'alasan', e.target.value as AlasanReturn)}
-                          className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:border-ring">
-                          {ALASAN_OPTIONS.map((a) => <option key={a}>{a}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-2 py-2">
-                        <Input value={row.catatan} onChange={(e) => updateRow(idx, 'catatan', e.target.value)}
-                          placeholder="Opsional" className="h-8 text-xs" />
-                      </td>
-                      <td className="px-1 py-2">
-                        {rows.length > 1 && (
-                          <button type="button" onClick={() => setRows((p) => p.filter((_, i) => i !== idx))}
-                            className="flex size-7 items-center justify-center rounded text-muted-foreground hover:text-destructive">
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-border" ref={dropRef}>
+                  {rows.map((row, idx) => {
+                    const locked = lockedRows.has(idx)
+                    const suggestions = getSuggestions(row.productName)
+                    return (
+                      <tr key={idx}>
+                        {/* Nama Produk — autocomplete */}
+                        <td className="px-2 py-2">
+                          <div className="relative">
+                            {locked ? (
+                              <div className="flex items-center gap-1">
+                                <span className="flex-1 truncate rounded-md border border-input bg-muted/50 px-2 py-1 text-xs font-medium">
+                                  {row.productName}
+                                </span>
+                                <button type="button" onClick={() => unlockRow(idx)} title="Ganti produk"
+                                  className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground">
+                                  <X className="size-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <Input value={row.productName}
+                                  onChange={e => { updateRow(idx, 'productName', e.target.value); setOpenDrop(idx) }}
+                                  onFocus={() => setOpenDrop(idx)}
+                                  placeholder="Cari nama / SKU…" className="h-8 text-xs" />
+                                {openDrop === idx && suggestions.length > 0 && (
+                                  <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-border bg-card shadow-lg overflow-hidden">
+                                    {suggestions.map(p => (
+                                      <button key={p.id} type="button"
+                                        onMouseDown={() => selectProduct(idx, p)}
+                                        className="flex w-full flex-col px-3 py-2 text-left hover:bg-muted border-b border-border/50 last:border-0">
+                                        <span className="font-mono text-[11px] font-medium text-primary">{p.sku}</span>
+                                        <span className="text-xs text-muted-foreground truncate">{p.name}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input type="number" min={1} value={row.qty} onChange={(e) => updateRow(idx, 'qty', e.target.value)}
+                            className="h-8 text-xs text-right" />
+                        </td>
+                        {/* Harga — read-only saat locked */}
+                        <td className="px-2 py-2">
+                          <Input type="number" min={0} value={row.harga}
+                            onChange={(e) => updateRow(idx, 'harga', e.target.value)}
+                            placeholder="0" readOnly={locked}
+                            className={`h-8 text-xs text-right ${locked ? 'bg-muted/50 cursor-not-allowed' : ''}`} />
+                        </td>
+                        <td className="px-2 py-2">
+                          <select value={row.alasan} onChange={(e) => updateRow(idx, 'alasan', e.target.value as AlasanReturn)}
+                            className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:border-ring">
+                            {ALASAN_OPTIONS.map((a) => <option key={a}>{a}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input value={row.catatan} onChange={(e) => updateRow(idx, 'catatan', e.target.value)}
+                            placeholder="Opsional" className="h-8 text-xs" />
+                        </td>
+                        <td className="px-1 py-2">
+                          {rows.length > 1 && (
+                            <button type="button" onClick={() => { setRows(p => p.filter((_, i) => i !== idx)); unlockRow(idx) }}
+                              className="flex size-7 items-center justify-center rounded text-muted-foreground hover:text-destructive">
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
