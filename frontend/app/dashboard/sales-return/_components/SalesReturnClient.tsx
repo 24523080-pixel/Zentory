@@ -165,16 +165,16 @@ function NewReturnModal({
                 <Plus className="size-3" /> Tambah Item
               </button>
             </div>
-            <div className="overflow-hidden rounded-xl border border-border">
+            <div className="rounded-xl border border-border" style={{ overflow: 'visible' }}>
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/50 text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2.5 font-medium">Nama Produk</th>
+                    <th className="rounded-tl-xl px-3 py-2.5 font-medium">Nama Produk</th>
                     <th className="px-3 py-2.5 font-medium w-16">Qty</th>
                     <th className="px-3 py-2.5 font-medium w-28">Harga Satuan</th>
                     <th className="px-3 py-2.5 font-medium w-36">Alasan</th>
                     <th className="px-3 py-2.5 font-medium">Catatan</th>
-                    <th className="w-8" />
+                    <th className="rounded-tr-xl w-8" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border" ref={dropRef}>
@@ -201,6 +201,7 @@ function NewReturnModal({
                                 <Input value={row.productName}
                                   onChange={e => { updateRow(idx, 'productName', e.target.value); setOpenDrop(idx) }}
                                   onFocus={() => setOpenDrop(idx)}
+                                  onBlur={() => setTimeout(() => setOpenDrop(null), 150)}
                                   placeholder="Cari nama / SKU…" className="h-8 text-xs" />
                                 {openDrop === idx && suggestions.length > 0 && (
                                   <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-border bg-card shadow-lg overflow-hidden">
