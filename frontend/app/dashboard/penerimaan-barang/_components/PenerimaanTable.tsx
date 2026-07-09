@@ -8,7 +8,6 @@ import {
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 
-type StatusPenerimaan = 'Menunggu' | 'Diterima' | 'Ada Selisih'
 interface ItemPenerimaan { id: string; sku: string; productName: string; qtyPO: number; qtyDiterima: number }
 interface Penerimaan {
   id: string; noPenerimaan: string; noPO: string; supplier: string
@@ -108,12 +107,17 @@ export function PenerimaanTable() {
     setEditSaving(false)
   }
 
-  // Load POs dengan status Dikirim untuk autocomplete
+  // Load POs dengan status Diterima yang belum punya penerimaan
   useEffect(() => {
-    fetch('/api/purchase-orders')
-      .then(r => r.ok ? r.json() : [])
-      .then((pos: POOption[]) => setAvailablePOs(pos.filter((p: any) => p.status === 'Diterima')))
-      .catch(() => {})
+    Promise.all([
+      fetch('/api/purchase-orders').then(r => r.ok ? r.json() : []),
+      fetch('/api/penerimaan').then(r => r.ok ? r.json() : []),
+    ]).then(([pos, pens]: [POOption[], { noPO: string }[]]) => {
+      const sudahDiterima = new Set(pens.map(p => p.noPO))
+      setAvailablePOs(
+        (pos as any[]).filter(p => p.status === 'Diterima' && !sudahDiterima.has(p.noPO))
+      )
+    }).catch(() => {})
   }, [])
 
   // Tutup dropdown PO saat klik di luar

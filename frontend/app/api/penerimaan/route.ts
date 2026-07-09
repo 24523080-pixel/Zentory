@@ -26,6 +26,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const all  = await prisma.penerimaan.findMany({ select: { noPenerimaan: true } })
 
+  // Cegah penerimaan duplikat untuk PO yang sama
+  const duplicate = await prisma.penerimaan.findFirst({ where: { noPO: body.noPO } })
+  if (duplicate) {
+    return NextResponse.json(
+      { message: `PO ${body.noPO} sudah pernah dicatat penerimaannya (${duplicate.noPenerimaan}). Satu PO hanya boleh satu kali penerimaan.` },
+      { status: 400 },
+    )
+  }
+
   const items = body.items as { sku: string; productName: string; qtyPO: number; qtyDiterima: number }[]
 
   // Validasi: cek apakah ada SKU yang sudah terdaftar dengan nama produk berbeda
