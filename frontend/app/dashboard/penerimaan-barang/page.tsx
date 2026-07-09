@@ -1,21 +1,22 @@
 import { PackageCheck, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { PENERIMAAN_LIST } from './_data'
+import { prisma } from '@/lib/prisma'
 import { PenerimaanTable } from './_components/PenerimaanTable'
 import { PageBanner } from '../_components/PageBanner'
 
-const total       = PENERIMAAN_LIST.length
-const menunggu    = PENERIMAAN_LIST.filter((p) => p.status === 'Menunggu').length
-const diterima    = PENERIMAAN_LIST.filter((p) => p.status === 'Diterima').length
-const adaSelisih  = PENERIMAAN_LIST.filter((p) => p.status === 'Ada Selisih').length
+export default async function PenerimaanBarangPage() {
+  const list = await prisma.penerimaan.findMany({ select: { status: true } })
 
-const SUMMARY = [
-  { label: 'Total Penerimaan',   value: `${total} dokumen`,      icon: PackageCheck,  accent: 'text-primary',     glow: 'bg-primary/10'    },
-  { label: 'Menunggu Verifikasi',value: `${menunggu} dokumen`,   icon: Clock,         accent: 'text-muted-foreground', glow: 'bg-muted'     },
-  { label: 'Diterima Sempurna',  value: `${diterima} dokumen`,   icon: CheckCircle2,  accent: 'text-chart-3',     glow: 'bg-chart-3/10'    },
-  { label: 'Ada Selisih',        value: `${adaSelisih} dokumen`, icon: AlertTriangle, accent: 'text-destructive',  glow: 'bg-destructive/10'},
-]
+  const total      = list.length
+  const menunggu   = list.filter(p => p.status === 'Menunggu').length
+  const diterima   = list.filter(p => p.status === 'Diterima').length
+  const adaSelisih = list.filter(p => p.status === 'Ada Selisih').length
 
-export default function PenerimaanBarangPage() {
+  const SUMMARY = [
+    { label: 'Total Penerimaan',    value: `${total} dokumen`,      icon: PackageCheck,  accent: 'text-primary',          glow: 'bg-primary/10'     },
+    { label: 'Menunggu Verifikasi', value: `${menunggu} dokumen`,   icon: Clock,         accent: 'text-muted-foreground', glow: 'bg-muted'          },
+    { label: 'Diterima Sempurna',   value: `${diterima} dokumen`,   icon: CheckCircle2,  accent: 'text-chart-3',          glow: 'bg-chart-3/10'     },
+    { label: 'Ada Selisih',         value: `${adaSelisih} dokumen`, icon: AlertTriangle, accent: 'text-destructive',      glow: 'bg-destructive/10' },
+  ]
   return (
     <>
       <header className="flex h-16 items-center border-b border-border bg-card px-6">
