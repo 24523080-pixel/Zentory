@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp, TrendingDown, PackageX, Info, Minus, Loader2, RefreshCw, CheckCircle2, X } from 'lucide-react'
+import { TrendingUp, TrendingDown, PackageX, Info, Minus, Loader2, RefreshCw, CheckCircle2, X, Sparkles } from 'lucide-react'
 
 type Klasifikasi = 'Fast Moving' | 'Slow Moving' | 'Dead Stock' | 'Insufficient Data'
 
@@ -83,6 +83,26 @@ export function AnalitikClient({ role }: { role: string }) {
   const [filter, setFilter]             = useState<FilterKlasifikasi>('Semua')
   const [reklasLoading, setReklasLoading] = useState(false)
   const [reklasResult, setReklasResult]   = useState<{ changed: number; total: number } | null>(null)
+  const [aiRek, setAiRek]                 = useState<Record<string, { loading: boolean; text: string | null }>>({})
+
+  async function fetchAiRek(p: AnalitikProduct) {
+    setAiRek(prev => ({ ...prev, [p.id]: { loading: true, text: null } }))
+    try {
+      const res = await fetch('/api/analitik/rekomendasi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: p.id, name: p.name, sku: p.sku,
+          klasifikasi: p.klasifikasi, stok: p.stok, rop: p.rop,
+          hargaBeli: p.hargaBeli, hargaJual: p.hargaJual,
+        }),
+      })
+      const data = await res.json()
+      setAiRek(prev => ({ ...prev, [p.id]: { loading: false, text: data.rekomendasi ?? null } }))
+    } catch {
+      setAiRek(prev => ({ ...prev, [p.id]: { loading: false, text: null } }))
+    }
+  }
 
   function loadProducts() {
     setLoading(true)
@@ -205,7 +225,12 @@ export function AnalitikClient({ role }: { role: string }) {
                 <th className="px-5 py-3 font-medium text-right">Harga Jual</th>
                 <th className="px-5 py-3 font-medium text-right">Margin</th>
                 <th className="px-5 py-3 font-medium">Klasifikasi</th>
-                <th className="px-5 py-3 font-medium">Rekomendasi</th>
+                <th className="px-5 py-3 font-medium">
+                  <span className="inline-flex items-center gap-1">
+                    Rekomendasi
+                    <Sparkles className="size-3 text-primary" />
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -238,7 +263,37 @@ export function AnalitikClient({ role }: { role: string }) {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 max-w-xs">
-                      <p className="text-xs text-muted-foreground leading-relaxed">{REKOMENDASI[p.klasifikasi]}</p>
+                      {aiRek[p.id]?.loading ? (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Loader2 className="size-3 animate-spin" />
+                          Menganalisis…
+                        </div>
+                      ) : aiRek[p.id]?.text ? (
+                        <div className="space-y-1.5">
+                          <p className="text-xs leading-relaxed text-foreground">{aiRek[p.id].text}</p>
+                          <button
+                            type="button"
+                            onClick={() => fetchAiRek(p)}
+                            className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                          >
+                            <Sparkles className="size-2.5" /> Perbarui saran AI
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-2">
+                          <p className="flex-1 text-xs leading-relaxed text-muted-foreground">{REKOMENDASI[p.klasifikasi]}</p>
+                          {role === 'manager' && (
+                            <button
+                              type="button"
+                              onClick={() => fetchAiRek(p)}
+                              title="Minta saran AI"
+                              className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                            >
+                              <Sparkles className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
