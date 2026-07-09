@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp, TrendingDown, PackageX, Info, Minus, Loader2 } from 'lucide-react'
+import { TrendingUp, TrendingDown, PackageX, Info, Minus, Loader2, RefreshCw, CheckCircle2, X } from 'lucide-react'
 
 type Klasifikasi = 'Fast Moving' | 'Slow Moving' | 'Dead Stock' | 'Insufficient Data'
 
@@ -77,12 +77,15 @@ function Distribution({ products }: { products: AnalitikProduct[] }) {
 type FilterKlasifikasi = 'Semua' | Klasifikasi
 const TABS: FilterKlasifikasi[] = ['Semua', 'Fast Moving', 'Slow Moving', 'Dead Stock', 'Insufficient Data']
 
-export function AnalitikClient() {
-  const [products, setProducts] = useState<AnalitikProduct[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [filter, setFilter]     = useState<FilterKlasifikasi>('Semua')
+export function AnalitikClient({ role }: { role: string }) {
+  const [products, setProducts]         = useState<AnalitikProduct[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [filter, setFilter]             = useState<FilterKlasifikasi>('Semua')
+  const [reklasLoading, setReklasLoading] = useState(false)
+  const [reklasResult, setReklasResult]   = useState<{ changed: number; total: number } | null>(null)
 
-  useEffect(() => {
+  function loadProducts() {
+    setLoading(true)
     fetch('/api/products')
       .then(r => r.ok ? r.json() : [])
       .then(data => setProducts(data.map((p: { id: string; name: string; sku: string; kategori: string; klasifikasi: string; stok: number; rop: number; hargaBeli: number; hargaJual: number }) => ({
@@ -91,7 +94,24 @@ export function AnalitikClient() {
       }))))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadProducts() }, [])
+
+  async function handleReklasifikasi() {
+    setReklasLoading(true)
+    setReklasResult(null)
+    try {
+      const res = await fetch('/api/analitik/reklasifikasi', { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setReklasResult({ changed: data.changed, total: data.total })
+        loadProducts()
+      }
+    } finally {
+      setReklasLoading(false)
+    }
+  }
 
   const fast          = products.filter(p => p.klasifikasi === 'Fast Moving')
   const slow          = products.filter(p => p.klasifikasi === 'Slow Moving')
@@ -143,7 +163,22 @@ export function AnalitikClient() {
       {/* Produk table */}
       <div className="rounded-xl border border-border bg-card shadow-xs">
         <div className="border-b border-border px-5 py-4">
-          <h3 className="mb-3 text-sm font-semibold">Klasifikasi Produk</h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Klasifikasi Produk</h3>
+            {role === 'manager' && (
+              <button
+                type="button"
+                onClick={handleReklasifikasi}
+                disabled={reklasLoading}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/8 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+              >
+                {reklasLoading
+                  ? <Loader2 className="size-3.5 animate-spin" />
+                  : <RefreshCw className="size-3.5" />}
+                {reklasLoading ? 'Menganalisis…' : 'Reklasifikasi dari Data Penjualan'}
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-1">
             {TABS.map(t => (
               <button key={t} type="button" onClick={() => setFilter(t)}
@@ -215,5 +250,26 @@ export function AnalitikClient() {
         </div>
       </div>
     </div>
+
+      {/* Toast hasil reklasifikasi */}
+      {reklasResult && (
+        <div className="fixed bottom-6 right-6 z-50 w-72 rounded-2xl border border-chart-3/30 bg-card p-4 shadow-xl">
+          <div className="flex items-start gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-chart-3/10">
+              <CheckCircle2 className="size-4 text-chart-3" />
+            </span>
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-chart-3">Reklasifikasi selesai</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {reklasResult.changed} dari {reklasResult.total} produk berubah klasifikasi
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Berdasarkan penjualan 30 hari terakhir</p>
+            </div>
+            <button type="button" onClick={() => setReklasResult(null)} className="text-muted-foreground hover:text-foreground">
+              <X className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
   )
 }

@@ -58,8 +58,9 @@ model Product {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  opnameItems StockOpnameItem[]
-  returnItems ReturnItem[]
+  opnameItems      StockOpnameItem[]
+  returnItems      ReturnItem[]
+  transactionItems TransactionItem[]
 }
 
 model PurchaseOrder {
@@ -185,4 +186,26 @@ model Notification {
   link       String?
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  noTransaksi String            @unique
+  tanggal     DateTime          @default(now())
+  kasirId     String?
+  createdAt   DateTime          @default(now())
+
+  items       TransactionItem[]
+}
+
+model TransactionItem {
+  id            String       @id @default(cuid())
+  transactionId String
+  transaction   Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId     String?
+  product       Product?     @relation(fields: [productId], references: [id])
+  sku           String
+  productName   String
+  qty           Int
+  hargaSatuan   Float
 }

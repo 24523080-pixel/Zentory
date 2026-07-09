@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   if (!items?.length) return NextResponse.json({ message: 'Items kosong' }, { status: 400 })
 
   const reorderTriggered: string[] = []
+  const sold: { productId: string; sku: string; productName: string; qty: number; hargaSatuan: number }[] = []
 
   for (const item of items) {
     const product = await prisma.product.findUnique({ where: { id: item.productId } })
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
 
     const newStok = product.stok - item.qty
     await prisma.product.update({ where: { id: item.productId }, data: { stok: newStok } })
+    sold.push({ productId: product.id, sku: product.sku, productName: product.name, qty: item.qty, hargaSatuan: product.hargaJual })
 
     // FR-01: Auto-create draft PO saat stok mencapai/melewati ROP
     if (newStok <= product.rop) {
@@ -68,6 +70,20 @@ export async function POST(req: NextRequest) {
         })
       }
     }
+  }
+
+  // Catat transaksi penjualan untuk analitik klasifikasi
+  if (sold.length > 0) {
+    const existing = await prisma.transaction.findMany({ select: { noTransaksi: true } })
+    const nums     = existing.map(t => parseInt(t.noTransaksi.split('-')[2] ?? '0', 10)).filter(n => !isNaN(n))
+    const noTransaksi = `TRX-${new Date().getFullYear()}-${String(Math.max(0, ...nums) + 1).padStart(4, '0')}`
+    await prisma.transaction.create({
+      data: {
+        noTransaksi,
+        kasirId: session.id,
+        items:   { create: sold },
+      },
+    })
   }
 
   return NextResponse.json({ success: true, reorderTriggered })

@@ -1,8 +1,10 @@
 import { BarChart2 } from 'lucide-react'
 import { AnalitikClient } from './_components/AnalitikClient'
 import { PageBanner } from '../_components/PageBanner'
+import { getSession } from '@/lib/auth'
 
-export default function AnalitikPage() {
+export default async function AnalitikPage() {
+  const session = await getSession()
   const tanggal = new Date().toLocaleDateString('id-ID', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
@@ -27,7 +29,7 @@ export default function AnalitikPage() {
           title="Analitik & Klasifikasi Stok"
           description="Identifikasi Fast, Slow, dan Dead Stock dari data penjualan 6 bulan terakhir."
         />
-        <AnalitikClient />
+        <AnalitikClient role={session?.role ?? ''} />
       </main>
     </>
   )
