@@ -4,12 +4,12 @@ import { useState, useMemo, Fragment, useCallback, useEffect, useRef } from 'rea
 import {
   Search, ChevronLeft, ChevronRight,
   ChevronDown, ChevronUp, X, ScanBarcode,
-  PackageCheck, Loader2, CheckCircle2,
+  PackageCheck, Loader2, CheckCircle2, Pencil,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 
 type StatusPenerimaan = 'Menunggu' | 'Diterima' | 'Ada Selisih'
-interface ItemPenerimaan { sku: string; productName: string; qtyPO: number; qtyDiterima: number }
+interface ItemPenerimaan { id: string; sku: string; productName: string; qtyPO: number; qtyDiterima: number }
 interface Penerimaan {
   id: string; noPenerimaan: string; noPO: string; supplier: string
   tanggal: string; status: string; catatan?: string | null; items: ItemPenerimaan[]
@@ -32,7 +32,7 @@ function formatTanggal(iso: string) {
   return new Date(iso).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-interface ItemRow extends ItemPenerimaan { _key: number }
+interface ItemRow extends Omit<ItemPenerimaan, 'id'> { _key: number; id?: string }
 
 export function PenerimaanTable() {
   const [list, setList]         = useState<Penerimaan[]>([])
@@ -69,6 +69,44 @@ export function PenerimaanTable() {
   const [formItems, setFormItems]     = useState<ItemRow[]>([])
   const [errors, setErrors]           = useState<Record<string, string>>({})
   const [conflicts, setConflicts]     = useState<{ sku: string; namaKatalog: string; namaPO: string }[]>([])
+
+  // State edit penerimaan "Menunggu"
+  const [editTarget, setEditTarget]   = useState<Penerimaan | null>(null)
+  const [editItems, setEditItems]     = useState<ItemRow[]>([])
+  const [editCatatan, setEditCatatan] = useState('')
+  const [editSaving, setEditSaving]   = useState(false)
+  const [editSaved, setEditSaved]     = useState(false)
+
+  function openEdit(p: Penerimaan) {
+    setEditTarget(p)
+    setEditItems(p.items.map((i, idx) => ({ ...i, _key: idx })))
+    setEditCatatan(p.catatan ?? '')
+    setEditSaving(false)
+    setEditSaved(false)
+  }
+  function closeEdit() { setEditTarget(null) }
+
+  async function handleEditSubmit() {
+    if (!editTarget) return
+    const hasAny = editItems.some(i => i.qtyDiterima > 0)
+    if (!hasAny) return
+    setEditSaving(true)
+    const res = await fetch(`/api/penerimaan/${editTarget.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        catatan: editCatatan.trim() || null,
+        items: editItems.map(i => ({ id: i.id, qtyDiterima: Number(i.qtyDiterima) })),
+      }),
+    })
+    if (res.ok) {
+      const updated: Penerimaan = await res.json()
+      setList(prev => prev.map(p => p.id === updated.id ? updated : p))
+      setEditSaved(true)
+      setTimeout(closeEdit, 900)
+    }
+    setEditSaving(false)
+  }
 
   // Load POs dengan status Dikirim untuk autocomplete
   useEffect(() => {
@@ -155,6 +193,11 @@ export function PenerimaanTable() {
 
   async function handleSubmit() {
     if (!validate() || !selectedPO) return
+    const hasAnyQty = formItems.some(i => i.qtyDiterima > 0)
+    if (!hasAnyQty) {
+      setErrors({ qty: 'Minimal satu item harus memiliki Qty Diterima lebih dari 0.' })
+      return
+    }
     setConflicts([])
     setSaving(true)
     const items = formItems.map(({ _key, ...rest }) => ({
@@ -240,6 +283,7 @@ export function PenerimaanTable() {
                 <th className="px-4 py-3 font-medium">Tanggal</th>
                 <th className="px-4 py-3 font-medium">Item</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium sr-only">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -276,6 +320,18 @@ export function PenerimaanTable() {
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[p.status]}`}>
                         {p.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+                      {p.status === 'Menunggu' && (
+                        <button
+                          type="button"
+                          onClick={() => openEdit(p)}
+                          title="Update qty diterima"
+                          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
 
@@ -471,6 +527,13 @@ export function PenerimaanTable() {
                 </div>
               )}
 
+              {/* Error qty */}
+              {errors.qty && (
+                <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2.5 text-xs text-destructive">
+                  {errors.qty}
+                </p>
+              )}
+
               {/* Konflik nama produk */}
               {conflicts.length > 0 && (
                 <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-2">
@@ -529,6 +592,88 @@ export function PenerimaanTable() {
                     : saving
                       ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</>
                       : <><ScanBarcode className="size-4" /> Simpan Penerimaan</>
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Edit Penerimaan "Menunggu" ── */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 py-8">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={closeEdit} />
+          <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <div>
+                <h2 className="text-sm font-semibold">Update Qty Diterima</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {editTarget.noPenerimaan} · {editTarget.noPO} · {editTarget.supplier}
+                </p>
+              </div>
+              <button type="button" onClick={closeEdit}
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground">
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-6">
+              {/* Tabel item */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_100px_90px_90px] gap-2 px-1">
+                  {['Nama Produk', 'SKU', 'Qty PO', 'Qty Diterima'].map(h => (
+                    <span key={h} className="text-[11px] font-medium text-muted-foreground">{h}</span>
+                  ))}
+                </div>
+                <div className="space-y-1.5">
+                  {editItems.map(item => (
+                    <div key={item._key} className="grid grid-cols-[1fr_100px_90px_90px] gap-2 items-center">
+                      <div className="rounded-md bg-muted/50 px-3 py-1.5 text-xs font-medium truncate">{item.productName}</div>
+                      <div className="rounded-md bg-muted/50 px-3 py-1.5 font-mono text-xs text-muted-foreground">{item.sku}</div>
+                      <div className="rounded-md bg-muted/50 px-3 py-1.5 text-xs text-right tabular-nums text-muted-foreground">{item.qtyPO}</div>
+                      <Input
+                        type="number" min="0" max={item.qtyPO}
+                        value={item.qtyDiterima || ''}
+                        onChange={e => setEditItems(prev =>
+                          prev.map(i => i._key === item._key ? { ...i, qtyDiterima: Number(e.target.value) } : i)
+                        )}
+                        placeholder="0"
+                        className="h-8 text-xs text-right"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Catatan */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Catatan <span className="text-muted-foreground/60">(opsional)</span>
+                </label>
+                <textarea rows={2} value={editCatatan}
+                  onChange={e => setEditCatatan(e.target.value)}
+                  placeholder="Contoh: 2 karton rusak, dikembalikan ke driver..."
+                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border px-6 py-4">
+              <p className="text-xs text-muted-foreground">Stok produk akan bertambah sesuai qty diterima</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={closeEdit}
+                  className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted">
+                  Batal
+                </button>
+                <button type="button" onClick={handleEditSubmit}
+                  disabled={editSaving || !editItems.some(i => i.qtyDiterima > 0)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
+                  {editSaved
+                    ? <><PackageCheck className="size-4" /> Tersimpan!</>
+                    : editSaving
+                      ? <><Loader2 className="size-4 animate-spin" /> Menyimpan…</>
+                      : <><PackageCheck className="size-4" /> Simpan Update</>
                   }
                 </button>
               </div>
