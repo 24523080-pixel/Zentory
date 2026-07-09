@@ -24,19 +24,26 @@ export async function POST(req: Request) {
 
   const prompt = `Kamu adalah konsultan manajemen inventori toko ritel.
 
-Berikan rekomendasi tindakan spesifik untuk produk berikut dalam 2-3 kalimat. Fokus pada tindakan konkret yang bisa dilakukan manager toko. Gunakan Bahasa Indonesia yang formal namun ringkas.
+Analisis produk berikut dan berikan dua hal:
+1. Rekomendasi tindakan spesifik (2-3 kalimat), fokus pada tindakan konkret yang bisa dilakukan manager toko
+2. Saran Reorder Point (ROP) yang optimal dalam satuan unit beserta alasan singkatnya (1 kalimat). ROP adalah titik minimum stok yang memicu pemesanan ulang. Estimasi lead time supplier 7 hari jika tidak ada data lain.
 
 Data produk:
 - Nama: ${name} (SKU: ${sku})
 - Klasifikasi: ${klasifikasi}
 - Stok saat ini: ${stok} unit
-- Reorder Point (ROP): ${rop} unit
+- ROP saat ini: ${rop} unit
 - Terjual 30 hari terakhir: ${totalSold30} unit (rata-rata ${avgDaily} unit/hari)
 - Harga beli: Rp${hargaBeli.toLocaleString('id-ID')}
 - Harga jual: Rp${hargaJual.toLocaleString('id-ID')} (margin ${marginPct}%)
 - Nilai stok saat ini: Rp${nilaiStok.toLocaleString('id-ID')}
 
-Kembalikan HANYA JSON: { "rekomendasi": "teks rekomendasi di sini" }`
+Kembalikan HANYA JSON:
+{
+  "rekomendasi": "teks rekomendasi tindakan",
+  "saranRop": 25,
+  "alasanRop": "alasan singkat 1 kalimat"
+}`
 
   try {
     const completion = await openai.chat.completions.create({
@@ -44,11 +51,15 @@ Kembalikan HANYA JSON: { "rekomendasi": "teks rekomendasi di sini" }`
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0.3,
-      max_tokens: 200,
+      max_tokens: 300,
     })
 
     const result = JSON.parse(completion.choices[0].message.content ?? '{}')
-    return NextResponse.json({ rekomendasi: result.rekomendasi ?? '' })
+    return NextResponse.json({
+      rekomendasi: result.rekomendasi ?? '',
+      saranRop:    typeof result.saranRop === 'number' ? result.saranRop : null,
+      alasanRop:   result.alasanRop ?? null,
+    })
   } catch (err) {
     console.error('[rekomendasi-ai]', err)
     return NextResponse.json({ message: 'Gagal menghubungi AI' }, { status: 500 })

@@ -83,7 +83,11 @@ export function AnalitikClient({ role }: { role: string }) {
   const [filter, setFilter]             = useState<FilterKlasifikasi>('Semua')
   const [reklasLoading, setReklasLoading] = useState(false)
   const [reklasResult, setReklasResult]   = useState<{ changed: number; total: number } | null>(null)
-  const [aiRek, setAiRek]                 = useState<Record<string, { loading: boolean; text: string | null }>>({})
+  const [aiRek, setAiRek] = useState<Record<string, {
+    loading: boolean; text: string | null
+    saranRop?: number | null; alasanRop?: string | null
+  }>>({})
+  const [narasi, setNarasi] = useState<{ loading: boolean; text: string | null }>({ loading: false, text: null })
 
   async function fetchAiRek(p: AnalitikProduct) {
     setAiRek(prev => ({ ...prev, [p.id]: { loading: true, text: null } }))
@@ -98,9 +102,43 @@ export function AnalitikClient({ role }: { role: string }) {
         }),
       })
       const data = await res.json()
-      setAiRek(prev => ({ ...prev, [p.id]: { loading: false, text: data.rekomendasi ?? null } }))
+      setAiRek(prev => ({ ...prev, [p.id]: {
+        loading: false,
+        text:      data.rekomendasi ?? null,
+        saranRop:  data.saranRop  ?? null,
+        alasanRop: data.alasanRop ?? null,
+      } }))
     } catch {
       setAiRek(prev => ({ ...prev, [p.id]: { loading: false, text: null } }))
+    }
+  }
+
+  async function fetchNarasi() {
+    setNarasi({ loading: true, text: null })
+    try {
+      const fast30  = products.filter(p => p.klasifikasi === 'Fast Moving')
+      const dead30  = products.filter(p => p.klasifikasi === 'Dead Stock')
+      const res = await fetch('/api/analitik/narasi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalSku:      products.length,
+          fast:          fast30.length,
+          slow:          products.filter(p => p.klasifikasi === 'Slow Moving').length,
+          dead:          dead30.length,
+          insufficient:  products.filter(p => p.klasifikasi === 'Insufficient Data').length,
+          nilaiDeadStock: dead30.reduce((s, p) => s + p.stok * p.hargaBeli, 0),
+          topFast: fast30
+            .sort((a, b) => b.stok - a.stok)
+            .slice(0, 3)
+            .map(p => ({ name: p.name, sold: p.stok })),
+          deadItems: dead30.map(p => ({ name: p.name, nilai: p.stok * p.hargaBeli })),
+        }),
+      })
+      const data = await res.json()
+      setNarasi({ loading: false, text: data.narasi ?? null })
+    } catch {
+      setNarasi({ loading: false, text: null })
     }
   }
 
@@ -168,9 +206,45 @@ export function AnalitikClient({ role }: { role: string }) {
 
       {/* Distribusi */}
       <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-        <h3 className="text-sm font-semibold">Distribusi Klasifikasi</h3>
-        <p className="mb-4 text-xs text-muted-foreground">{products.length} SKU total</p>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">Distribusi Klasifikasi</h3>
+            <p className="text-xs text-muted-foreground">{products.length} SKU total</p>
+          </div>
+          {role === 'manager' && (
+            <button
+              type="button"
+              onClick={fetchNarasi}
+              disabled={narasi.loading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/8 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+            >
+              {narasi.loading
+                ? <Loader2 className="size-3.5 animate-spin" />
+                : <Sparkles className="size-3.5" />}
+              {narasi.loading ? 'Menganalisis…' : 'Analisis Portfolio AI'}
+            </button>
+          )}
+        </div>
         <Distribution products={products} />
+
+        {/* Narasi AI */}
+        {narasi.text && (
+          <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3.5">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <Sparkles className="size-3 text-primary" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-primary">Insight AI</span>
+            </div>
+            <p className="text-xs leading-relaxed text-foreground">{narasi.text}</p>
+            <button
+              type="button"
+              onClick={fetchNarasi}
+              className="mt-2 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+            >
+              <RefreshCw className="size-2.5" /> Perbarui
+            </button>
+          </div>
+        )}
+
         <div className="mt-5 space-y-2 border-t border-border pt-4">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Kriteria</p>
           {(Object.entries(KLASIFIKASI_CONFIG) as [Klasifikasi, typeof KLASIFIKASI_CONFIG[Klasifikasi]][]).map(([k, cfg]) => (
@@ -220,7 +294,12 @@ export function AnalitikClient({ role }: { role: string }) {
               <tr>
                 <th className="px-5 py-3 font-medium">Produk</th>
                 <th className="px-5 py-3 font-medium text-right">Stok</th>
-                <th className="px-5 py-3 font-medium text-right">ROP</th>
+                <th className="px-5 py-3 font-medium text-right">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    ROP
+                    <Sparkles className="size-3 text-primary" />
+                  </span>
+                </th>
                 <th className="px-5 py-3 font-medium text-right">Harga Beli</th>
                 <th className="px-5 py-3 font-medium text-right">Harga Jual</th>
                 <th className="px-5 py-3 font-medium text-right">Margin</th>
@@ -249,7 +328,19 @@ export function AnalitikClient({ role }: { role: string }) {
                         {p.stok}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-right tabular-nums text-muted-foreground">{p.rop}</td>
+                    <td className="px-5 py-3.5 text-right tabular-nums">
+                      <span className="text-muted-foreground">{p.rop}</span>
+                      {aiRek[p.id]?.saranRop != null && (
+                        <div className="mt-0.5">
+                          <span className="inline-block rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                            Saran: {aiRek[p.id].saranRop}
+                          </span>
+                          {aiRek[p.id]?.alasanRop && (
+                            <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">{aiRek[p.id].alasanRop}</p>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-5 py-3.5 text-right tabular-nums text-xs text-muted-foreground">{formatRupiah(p.hargaBeli)}</td>
                     <td className="px-5 py-3.5 text-right tabular-nums text-xs">{formatRupiah(p.hargaJual)}</td>
                     <td className="px-5 py-3.5 text-right tabular-nums">
