@@ -30,6 +30,7 @@ interface OpnameItem {
   stokSistem:  number
   stokFisik:   number | null
   selisih:     number | null
+  product?:    { hargaBeli: number } | null
 }
 interface StockOpname {
   id:             string
@@ -76,6 +77,7 @@ export function StockOpnameClient({ role }: Props) {
   const [otpCode,             setOtpCode]             = useState('')
   const [otpError,            setOtpError]            = useState('')
   const [otpLoading,          setOtpLoading]          = useState(false)
+  const [approveToast,        setApproveToast]        = useState<{ name: string; selisih: number }[] | null>(null)
 
   const selected = sessions.find((s) => s.id === selectedId)
 
@@ -243,8 +245,10 @@ export function StockOpnameClient({ role }: Props) {
     const fisik = isBerlangsung
       ? (counts[item.id] !== undefined ? parseInt(counts[item.id]) || 0 : item.stokFisik)
       : item.stokFisik
-    const variance = fisik !== null ? fisik - item.stokSistem : null
-    return { ...item, stokFisikResolved: fisik, variance }
+    const variance    = fisik !== null ? fisik - item.stokSistem : null
+    const hargaBeli   = item.product?.hargaBeli ?? 0
+    const nilaiSelisih = variance !== null ? variance * hargaBeli : null
+    return { ...item, stokFisikResolved: fisik, variance, nilaiSelisih }
   })
 
   const belumDihitung = isBerlangsung
@@ -266,6 +270,10 @@ export function StockOpnameClient({ role }: Props) {
     if (res.ok) {
       const updated: StockOpname = await res.json()
       setSessions(prev => prev.map(s => s.id === selectedId ? updated : s))
+      const adjusted = updated.items
+        .filter(i => i.selisih !== null && i.selisih !== 0)
+        .map(i => ({ name: i.productName, selisih: i.selisih! }))
+      if (adjusted.length > 0) setApproveToast(adjusted)
       setView('list')
     }
   }
@@ -367,6 +375,37 @@ export function StockOpnameClient({ role }: Props) {
           )}
         </div>
 
+        {/* Summary adjustment untuk Manager */}
+        {isMenunggu && isManager && (() => {
+          const ada       = itemsWithVariance.filter(i => i.variance !== null && i.variance !== 0)
+          const kurang    = ada.filter(i => (i.variance ?? 0) < 0)
+          const lebih     = ada.filter(i => (i.variance ?? 0) > 0)
+          const totalNilai = ada.reduce((s, i) => s + Math.abs(i.nilaiSelisih ?? 0), 0)
+          return (
+            <div className="rounded-xl border border-chart-4/30 bg-chart-4/5 px-5 py-4 space-y-3">
+              <p className="text-xs font-semibold text-chart-4">Ringkasan Adjustment Stok</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 text-center">
+                  <p className="text-lg font-bold text-destructive">{kurang.length}</p>
+                  <p className="text-[11px] text-muted-foreground">Produk Kurang</p>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 text-center">
+                  <p className="text-lg font-bold text-chart-3">{lebih.length}</p>
+                  <p className="text-[11px] text-muted-foreground">Produk Lebih</p>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-3 py-2.5 text-center">
+                  <p className="text-lg font-bold text-primary">{ada.length === 0 ? '—' : formatRupiah(totalNilai)}</p>
+                  <p className="text-[11px] text-muted-foreground">Total Nilai Selisih</p>
+                </div>
+              </div>
+              {ada.length === 0
+                ? <p className="text-xs text-chart-3">Semua stok sesuai — tidak ada adjustment diperlukan.</p>
+                : <p className="text-xs text-muted-foreground">Menyetujui akan langsung mengupdate stok produk ke angka fisik hasil opname.</p>
+              }
+            </div>
+          )
+        })()}
+
         {/* Progress bar (untuk status berlangsung) */}
         {isBerlangsung && (
           <div className="rounded-xl border border-border bg-card px-5 py-4 shadow-xs">
@@ -433,7 +472,9 @@ export function StockOpnameClient({ role }: Props) {
                       <td className={`px-5 py-3.5 text-right tabular-nums font-semibold ${varClass}`}>
                         {v === null ? '—' : v === 0 ? '✓' : v > 0 ? `+${v}` : v}
                       </td>
-                      <td className="px-5 py-3.5 text-right tabular-nums text-xs text-muted-foreground">—</td>
+                      <td className={`px-5 py-3.5 text-right tabular-nums text-xs font-medium ${item.nilaiSelisih === null || item.nilaiSelisih === 0 ? 'text-muted-foreground' : item.nilaiSelisih < 0 ? 'text-destructive' : 'text-chart-3'}`}>
+                        {item.nilaiSelisih === null ? '—' : item.nilaiSelisih === 0 ? '—' : formatRupiah(Math.abs(item.nilaiSelisih))}
+                      </td>
                       <td className="px-5 py-3.5">
                         {v === null ? (
                           <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Belum</span>
@@ -540,6 +581,34 @@ export function StockOpnameClient({ role }: Props) {
                 Tutup
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast: stok telah disesuaikan setelah approve */}
+      {approveToast && (
+        <div className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border border-chart-3/30 bg-card p-4 shadow-xl">
+          <div className="flex items-start gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-chart-3/10">
+              <CheckCircle2 className="size-4 text-chart-3" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-chart-3">Stok telah disesuaikan</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{approveToast.length} produk di-update</p>
+              <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                {approveToast.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="truncate text-muted-foreground">{item.name}</span>
+                    <span className={`ml-2 shrink-0 font-medium ${item.selisih < 0 ? 'text-destructive' : 'text-chart-3'}`}>
+                      {item.selisih > 0 ? `+${item.selisih}` : item.selisih} pcs
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button type="button" onClick={() => setApproveToast(null)} className="text-muted-foreground hover:text-foreground">
+              <X className="size-3.5" />
+            </button>
           </div>
         </div>
       )}

@@ -10,7 +10,10 @@ function nextNoOpname(existing: { noOpname: string }[]): string {
 
 export async function GET() {
   const sessions = await prisma.stockOpname.findMany({
-    include: { items: true },
+    include: {
+      createdBy: { select: { name: true } },
+      items: { include: { product: { select: { hargaBeli: true } } } },
+    },
     orderBy: { createdAt: 'desc' },
   })
   return NextResponse.json(sessions)
