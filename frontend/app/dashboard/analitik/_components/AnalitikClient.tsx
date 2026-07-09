@@ -127,6 +127,7 @@ export function AnalitikClient({ role }: { role: string }) {
   )
 
   return (
+    <>
     <div className="space-y-5">
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-4">
@@ -271,5 +272,6 @@ export function AnalitikClient({ role }: { role: string }) {
           </div>
         </div>
       )}
+    </>
   )
 }
