@@ -78,18 +78,28 @@ export function SiteHeader() {
           </Button>
         </div>
 
-        <button
-          type="button"
-          className={cn(
-            "inline-flex size-10 items-center justify-center rounded-md transition-colors md:hidden",
-            scrolled ? "text-foreground" : "text-white",
-          )}
-          onClick={() => setOpen((v) => !v)}
-          aria-label={open ? "Tutup menu" : "Buka menu"}
-          aria-expanded={open}
-        >
-          {open ? <X className="size-5" /> : <Menu className="size-5" />}
-        </button>
+        <div className="flex items-center gap-1 md:hidden">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn("h-9 px-3 text-sm font-medium", !scrolled && "text-white hover:bg-white/10 hover:text-white")}
+            asChild
+          >
+            <a href="/login">Masuk</a>
+          </Button>
+          <button
+            type="button"
+            className={cn(
+              "inline-flex size-10 items-center justify-center rounded-md transition-colors",
+              scrolled ? "text-foreground" : "text-white",
+            )}
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? "Tutup menu" : "Buka menu"}
+            aria-expanded={open}
+          >
+            {open ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+        </div>
       </div>
 
       {open && (
