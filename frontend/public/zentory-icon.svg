@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
-  <!-- rounded-lg pada size-8 (32px) = radius 14px → skala ke 180px = rx≈79 -->
   <rect width="180" height="180" rx="79" ry="79" fill="oklch(0.48 0.16 264)"/>
 
-  <!-- Boxes icon (Lucide) 24x24 → scale 4.25 → 102px, offset 39 untuk center -->
-  <g transform="translate(39,39)" fill="none" stroke="white" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-    <g transform="scale(4.25)">
+  <!-- Boxes icon (Lucide) 24x24 → scale(4.25) → 102px, center offset 39 -->
+  <!-- stroke-width dalam koordinat 24-unit agar tidak ikut di-scale jadi tebal -->
+  <g transform="translate(39,39)">
+    <g transform="scale(4.25)" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/>
       <path d="M7 16.5l-4.74-2.85"/>
       <path d="M7 16.5l5-3"/>
