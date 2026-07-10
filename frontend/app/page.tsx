@@ -7,6 +7,7 @@ import { HowItWorks } from "@/components/how-it-works"
 import { BenefitSection } from "@/components/benefit-section"
 import { TestimonialSection } from "@/components/testimonial-section"
 import { FaqSection } from "@/components/faq-section"
+import { PricingSection } from "@/components/pricing-section"
 import { FinalCta } from "@/components/final-cta"
 import { SiteFooter } from "@/components/site-footer"
 
@@ -23,6 +24,7 @@ export default function Page() {
         <BenefitSection />
         <TestimonialSection />
         <FaqSection />
+        <PricingSection />
         <FinalCta />
       </main>
       <SiteFooter />

@@ -10,6 +10,7 @@ const navLinks = [
   { label: "Solusi", href: "#solusi" },
   { label: "Fitur", href: "#fitur" },
   { label: "Cara Kerja", href: "#cara-kerja" },
+  { label: "Harga", href: "#harga" },
   { label: "FAQ", href: "#faq" },
 ]
 
