@@ -91,27 +91,27 @@ function formatRupiah(n: number) {
 
 export function PricingSection() {
   return (
-    <section id="harga" className="py-20 sm:py-28">
+    <section id="harga" className="py-14 sm:py-28">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
         <div className="mx-auto max-w-2xl text-center">
           <span className="text-sm font-semibold text-primary">Harga</span>
-          <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h2 className="mt-3 text-balance text-2xl font-semibold tracking-tight sm:text-4xl">
             Pilih paket sesuai skala gudang Anda
           </h2>
-          <p className="mt-4 text-pretty text-lg leading-relaxed text-muted-foreground">
+          <p className="mt-3 text-pretty text-base leading-relaxed text-muted-foreground sm:mt-4 sm:text-lg">
             Mulai gratis selama 14 hari. Upgrade kapan saja tanpa kontrak jangka panjang.
           </p>
         </div>
 
         {/* Cards */}
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-10 grid gap-4 sm:mt-14 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
           {plans.map((plan) => (
             <div
               key={plan.name}
               className={cn(
-                "relative flex flex-col rounded-2xl border p-6 transition-all duration-300",
+                "relative flex flex-col rounded-2xl border p-4 transition-all duration-300 sm:p-6",
                 plan.highlight
                   ? "border-primary bg-primary text-primary-foreground shadow-xl shadow-primary/20"
                   : "border-border bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5",
@@ -129,30 +129,33 @@ export function PricingSection() {
                 <p className={cn("text-xs font-medium", plan.highlight ? "text-primary-foreground/70" : "text-muted-foreground")}>
                   {plan.sub}
                 </p>
-                <h3 className="mt-1 text-xl font-bold">{plan.name}</h3>
+                <h3 className="mt-0.5 text-lg font-bold sm:text-xl">{plan.name}</h3>
               </div>
 
               {/* Price */}
-              <div className="mt-5">
+              <div className="mt-3 sm:mt-5">
                 {plan.price ? (
-                  <>
-                    <span className="text-3xl font-bold tracking-tight">{formatRupiah(plan.price)}</span>
-                    <span className={cn("ml-1 text-sm", plan.highlight ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                      /{plan.priceNote}
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-bold tracking-tight sm:text-3xl">{formatRupiah(plan.price)}</span>
+                    <span className={cn("text-xs sm:text-sm", plan.highlight ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                      /bln
                     </span>
-                  </>
+                  </div>
                 ) : (
-                  <span className="text-3xl font-bold tracking-tight">Gratis</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-bold tracking-tight sm:text-3xl">Gratis</span>
+                  </div>
                 )}
                 <p className={cn("mt-1 text-xs", plan.highlight ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                  {plan.price ? plan.priceNote : plan.priceNote}
+                  {plan.priceNote}
                 </p>
               </div>
 
               {/* CTA */}
-              <div className="mt-6">
+              <div className="mt-4 sm:mt-6">
                 <Button
                   asChild
+                  size="sm"
                   variant={plan.highlight ? "secondary" : "outline"}
                   className={cn(
                     "w-full",
@@ -164,19 +167,19 @@ export function PricingSection() {
               </div>
 
               {/* Divider */}
-              <div className={cn("my-6 border-t", plan.highlight ? "border-primary-foreground/20" : "border-border")} />
+              <div className={cn("my-4 border-t sm:my-6", plan.highlight ? "border-primary-foreground/20" : "border-border")} />
 
               {/* Features */}
-              <ul className="flex flex-col gap-3">
+              <ul className="flex flex-col gap-2 sm:gap-3">
                 {plan.features.map((f) => (
-                  <li key={f.label} className="flex items-start gap-2.5">
+                  <li key={f.label} className="flex items-start gap-2">
                     {f.ok ? (
-                      <Check className={cn("mt-0.5 size-4 shrink-0", plan.highlight ? "text-primary-foreground" : "text-primary")} />
+                      <Check className={cn("mt-0.5 size-3.5 shrink-0 sm:size-4", plan.highlight ? "text-primary-foreground" : "text-primary")} />
                     ) : (
-                      <Minus className={cn("mt-0.5 size-4 shrink-0", plan.highlight ? "text-primary-foreground/30" : "text-muted-foreground/40")} />
+                      <Minus className={cn("mt-0.5 size-3.5 shrink-0 sm:size-4", plan.highlight ? "text-primary-foreground/30" : "text-muted-foreground/40")} />
                     )}
                     <span className={cn(
-                      "text-sm leading-snug",
+                      "text-xs leading-snug sm:text-sm",
                       !f.ok && (plan.highlight ? "text-primary-foreground/40" : "text-muted-foreground/50"),
                     )}>
                       {f.label}
@@ -187,8 +190,8 @@ export function PricingSection() {
 
               {/* AI badge untuk paket Besar */}
               {plan.name === "Besar" && (
-                <div className="mt-5 flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-                  <Sparkles className="size-3.5 shrink-0 text-primary" />
+                <div className="mt-4 flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1.5 sm:mt-5 sm:px-3 sm:py-2">
+                  <Sparkles className="size-3 shrink-0 text-primary sm:size-3.5" />
                   <span className="text-xs font-medium text-primary">Semua fitur AI tersedia</span>
                 </div>
               )}
@@ -197,7 +200,7 @@ export function PricingSection() {
         </div>
 
         {/* Footer note */}
-        <p className="mt-10 text-center text-sm text-muted-foreground">
+        <p className="mt-8 text-center text-xs text-muted-foreground sm:mt-10 sm:text-sm">
           Semua paket berbayar sudah termasuk dukungan via email.{" "}
           <a href="#faq" className="font-medium text-primary underline-offset-4 hover:underline">
             Lihat FAQ
