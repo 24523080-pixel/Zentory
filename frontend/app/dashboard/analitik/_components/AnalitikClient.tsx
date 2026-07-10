@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp, TrendingDown, PackageX, Info, Minus, Loader2, RefreshCw, CheckCircle2, X, Sparkles } from 'lucide-react'
+import { TrendingUp, TrendingDown, PackageX, Info, Loader2, RefreshCw, CheckCircle2, X, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 
 type Klasifikasi = 'Fast Moving' | 'Slow Moving' | 'Dead Stock' | 'Insufficient Data'
 
@@ -87,7 +87,8 @@ export function AnalitikClient({ role }: { role: string }) {
     loading: boolean; text: string | null
     saranRop?: number | null; alasanRop?: string | null
   }>>({})
-  const [narasi, setNarasi] = useState<{ loading: boolean; text: string | null }>({ loading: false, text: null })
+  const [narasi, setNarasi]           = useState<{ loading: boolean; text: string | null }>({ loading: false, text: null })
+  const [expandedRek, setExpandedRek] = useState<Record<string, boolean>>({})
 
   async function fetchAiRek(p: AnalitikProduct) {
     setAiRek(prev => ({ ...prev, [p.id]: { loading: true, text: null } }))
@@ -361,14 +362,28 @@ export function AnalitikClient({ role }: { role: string }) {
                         </div>
                       ) : aiRek[p.id]?.text ? (
                         <div className="space-y-1.5">
-                          <p className="text-xs leading-relaxed text-foreground">{aiRek[p.id].text}</p>
-                          <button
-                            type="button"
-                            onClick={() => fetchAiRek(p)}
-                            className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
-                          >
-                            <Sparkles className="size-2.5" /> Perbarui saran AI
-                          </button>
+                          <p className={`text-xs leading-relaxed text-foreground ${expandedRek[p.id] ? '' : 'line-clamp-3'}`}>
+                            {aiRek[p.id].text}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedRek(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
+                              className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                            >
+                              {expandedRek[p.id]
+                                ? <><ChevronUp className="size-3" /> Sembunyikan</>
+                                : <><ChevronDown className="size-3" /> Selengkapnya</>}
+                            </button>
+                            <span className="text-muted-foreground/40">·</span>
+                            <button
+                              type="button"
+                              onClick={() => fetchAiRek(p)}
+                              className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                            >
+                              <Sparkles className="size-2.5" /> Perbarui
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-start gap-2">
