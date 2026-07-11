@@ -11,9 +11,12 @@ type Sub = {
   email: string
   tier: string
   status: string
-  startDate: Date
+  startDate: string
   mrr: number
-  createdAt: Date
+  createdAt: string
+  userId: string | null
+  userName: string | null
+  userEmail: string | null
 }
 
 export default async function SuperAdminDashboard() {
@@ -22,17 +25,36 @@ export default async function SuperAdminDashboard() {
     redirect('/super-admin/login')
   }
 
-  const rows = await prisma.$queryRaw<Sub[]>`
-    SELECT id, "tenantName", email, tier, status, "startDate", mrr, "createdAt"
-    FROM "SaasSubscription"
-    ORDER BY "startDate" DESC
+  const rows = await prisma.$queryRaw<{
+    id: string; tenantName: string; email: string; tier: string
+    status: string; startDate: Date; mrr: number; createdAt: Date
+    userId: string | null; userName: string | null; userEmail: string | null
+  }[]>`
+    SELECT
+      s.id, s."tenantName", s.email, s.tier, s.status,
+      s."startDate", s.mrr, s."createdAt",
+      s."userId",
+      u.name AS "userName",
+      u.email AS "userEmail"
+    FROM "SaasSubscription" s
+    LEFT JOIN "User" u ON s."userId" = u.id
+    ORDER BY s."startDate" DESC
   `
 
-  const subs = rows.map((r) => ({
+  const subs: Sub[] = rows.map((r) => ({
     ...r,
     startDate: new Date(r.startDate).toISOString(),
     createdAt: new Date(r.createdAt).toISOString(),
+    userId: r.userId ?? null,
+    userName: r.userName ?? null,
+    userEmail: r.userEmail ?? null,
   }))
+
+  // Ambil stats sistem nyata untuk tenant yang terhubung
+  const [productCount, txCount] = await Promise.all([
+    prisma.product.count(),
+    prisma.transaction.count(),
+  ])
 
   // KPI
   const totalTenants = subs.length
@@ -69,6 +91,7 @@ export default async function SuperAdminDashboard() {
       kpi={{ totalTenants, activeTenants, mrr, totalRevenue }}
       tierCount={tierCount}
       monthlyMRR={monthlyMRR}
+      liveStats={{ productCount, txCount }}
     />
   )
 }

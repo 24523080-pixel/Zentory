@@ -39,10 +39,11 @@ model User {
   totpSecret   String?
   createdAt    DateTime @default(now())
 
-  createdPOs   PurchaseOrder[] @relation("CreatedBy")
-  approvedPOs  PurchaseOrder[] @relation("ApprovedBy")
-  salesReturns SalesReturn[]
-  opnames      StockOpname[]   @relation("OpnameCreatedBy")
+  createdPOs        PurchaseOrder[]    @relation("CreatedBy")
+  approvedPOs       PurchaseOrder[]    @relation("ApprovedBy")
+  salesReturns      SalesReturn[]
+  opnames           StockOpname[]      @relation("OpnameCreatedBy")
+  saasSubscription  SaasSubscription[]
 }
 
 model Product {
@@ -218,5 +219,10 @@ model SaasSubscription {
   status     String   @default("Active")
   startDate  DateTime @default(now())
   mrr        Int      @default(0)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
   createdAt  DateTime @default(now())
 }
+
+// tambah relasi balik di User
+

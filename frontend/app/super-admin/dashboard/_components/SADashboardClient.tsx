@@ -5,17 +5,20 @@ import { useRouter } from 'next/navigation'
 import {
   Boxes, TrendingUp, Users, DollarSign, Activity,
   LogOut, RefreshCw, ChevronUp, ChevronDown,
+  ExternalLink, Package, ShoppingCart, UserCheck,
 } from 'lucide-react'
 
 type Sub = {
   id: string; tenantName: string; email: string; tier: string
   status: string; startDate: string; mrr: number; createdAt: string
+  userId: string | null; userName: string | null; userEmail: string | null
 }
 type Props = {
   subs: Sub[]
   kpi: { totalTenants: number; activeTenants: number; mrr: number; totalRevenue: number }
   tierCount: Record<string, number>
   monthlyMRR: { month: string; mrr: number }[]
+  liveStats: { productCount: number; txCount: number }
 }
 
 const TIER_COLOR: Record<string, string> = {
@@ -40,7 +43,7 @@ function fmt(n: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
 }
 
-export function SADashboardClient({ subs, kpi, tierCount, monthlyMRR }: Props) {
+export function SADashboardClient({ subs, kpi, tierCount, monthlyMRR, liveStats }: Props) {
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
@@ -53,6 +56,9 @@ export function SADashboardClient({ subs, kpi, tierCount, monthlyMRR }: Props) {
     const diff = new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
     return sortDir === 'desc' ? diff : -diff
   })
+
+  // Tenant yang terhubung ke sistem nyata
+  const linkedTenant = subs.find((s) => s.userId !== null)
 
   async function logout() {
     setLoggingOut(true)
@@ -135,6 +141,58 @@ export function SADashboardClient({ subs, kpi, tierCount, monthlyMRR }: Props) {
           />
         </div>
 
+        {/* Live tenant spotlight — hanya jika ada yang terhubung */}
+        {linkedTenant && (
+          <div className="mb-6 rounded-xl border border-emerald-800/60 bg-emerald-950/30 p-4 sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600/20 text-emerald-400">
+                  <UserCheck className="size-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-white">{linkedTenant.tenantName}</h2>
+                    <span className="rounded-full border border-emerald-700 bg-emerald-900 px-2 py-0.5 text-xs font-medium text-emerald-300">
+                      Live
+                    </span>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TIER_BADGE[linkedTenant.tier]}`}>
+                      {linkedTenant.tier}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Manager: <span className="text-emerald-300">{linkedTenant.userName}</span>
+                    <span className="mx-1.5 text-slate-600">·</span>
+                    {linkedTenant.userEmail}
+                  </p>
+                  <div className="mt-2 flex gap-4">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <Package className="size-3.5 text-slate-500" />
+                      <span><strong className="text-white">{liveStats.productCount}</strong> produk</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <ShoppingCart className="size-3.5 text-slate-500" />
+                      <span><strong className="text-white">{liveStats.txCount}</strong> transaksi</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <DollarSign className="size-3.5 text-slate-500" />
+                      <span><strong className="text-white">{fmt(linkedTenant.mrr)}</strong>/bln</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <a
+                href="/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-700 bg-emerald-900/50 px-4 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-800"
+              >
+                Buka Sistem
+                <ExternalLink className="size-3.5" />
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Charts row */}
         <div className="mb-6 grid gap-4 lg:grid-cols-5">
           {/* MRR Trend */}
@@ -145,7 +203,9 @@ export function SADashboardClient({ subs, kpi, tierCount, monthlyMRR }: Props) {
                 const pct = (m.mrr / maxMRR) * 100
                 return (
                   <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
-                    <span className="text-[10px] font-medium text-slate-400">{m.mrr > 0 ? (m.mrr / 1_000_000).toFixed(1) + 'jt' : '-'}</span>
+                    <span className="text-[10px] font-medium text-slate-400">
+                      {m.mrr > 0 ? (m.mrr / 1_000_000).toFixed(1) + 'jt' : '-'}
+                    </span>
                     <div className="relative w-full rounded-t-md bg-violet-600/20" style={{ height: '90px' }}>
                       <div
                         className="absolute bottom-0 w-full rounded-t-md bg-violet-500 transition-all duration-500"
@@ -182,7 +242,6 @@ export function SADashboardClient({ subs, kpi, tierCount, monthlyMRR }: Props) {
               })}
             </div>
 
-            {/* Donut-like summary */}
             <div className="mt-5 rounded-lg bg-slate-800/50 p-3">
               <p className="mb-2 text-xs font-medium text-slate-400">Revenue by Tier (MRR)</p>
               {[
@@ -219,14 +278,27 @@ export function SADashboardClient({ subs, kpi, tierCount, monthlyMRR }: Props) {
                   <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Status</th>
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">MRR</th>
                   <th className="hidden px-4 py-2.5 text-left text-xs font-medium text-slate-500 sm:table-cell sm:px-5">Bergabung</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Akses</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {sortedSubs.map((s) => (
-                  <tr key={s.id} className="transition hover:bg-slate-800/40">
+                  <tr
+                    key={s.id}
+                    className={`transition hover:bg-slate-800/40 ${s.userId ? 'bg-emerald-950/10' : ''}`}
+                  >
                     <td className="px-4 py-3 sm:px-5">
-                      <p className="font-medium text-white text-xs sm:text-sm">{s.tenantName}</p>
-                      <p className="text-xs text-slate-500">{s.email}</p>
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <p className="font-medium text-white text-xs sm:text-sm">{s.tenantName}</p>
+                          <p className="text-xs text-slate-500">{s.email}</p>
+                          {s.userId && s.userName && (
+                            <p className="mt-0.5 text-xs text-emerald-400">
+                              Manager: {s.userName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TIER_BADGE[s.tier] || ''}`}>
@@ -239,14 +311,25 @@ export function SADashboardClient({ subs, kpi, tierCount, monthlyMRR }: Props) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-200 text-xs sm:text-sm">
-                      {s.mrr === 0 ? (
-                        <span className="text-slate-500">—</span>
-                      ) : (
-                        fmt(s.mrr)
-                      )}
+                      {s.mrr === 0 ? <span className="text-slate-500">—</span> : fmt(s.mrr)}
                     </td>
                     <td className="hidden px-4 py-3 text-xs text-slate-400 sm:table-cell sm:px-5">
                       {new Date(s.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td className="px-4 py-3">
+                      {s.userId ? (
+                        <a
+                          href="/dashboard"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 rounded-md border border-emerald-700 bg-emerald-900/40 px-2.5 py-1 text-xs font-medium text-emerald-300 transition hover:bg-emerald-800"
+                        >
+                          Buka
+                          <ExternalLink className="size-3" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-600">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
