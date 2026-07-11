@@ -1,6 +1,7 @@
 -- ============================================================
 --  ZENTORY v0.1 — Database Schema
 --  PostgreSQL (Supabase)
+--  14 tabel: 13 operasional + 1 SaaS subscription
 -- ============================================================
 
 -- ── Enums ────────────────────────────────────────────────────
@@ -172,6 +173,19 @@ CREATE TABLE "TransactionItem" (
     CONSTRAINT "TransactionItem_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TABLE "SaasSubscription" (
+    "id"         TEXT        NOT NULL,
+    "tenantName" TEXT        NOT NULL,
+    "email"      TEXT        NOT NULL,
+    "tier"       TEXT        NOT NULL,
+    "status"     TEXT        NOT NULL DEFAULT 'Active',
+    "startDate"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "mrr"        INTEGER     NOT NULL DEFAULT 0,
+    "userId"     TEXT,
+    "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "SaasSubscription_pkey" PRIMARY KEY ("id")
+);
+
 -- ── Unique Indexes ───────────────────────────────────────────
 
 CREATE UNIQUE INDEX "User_email_key"              ON "User"("email");
@@ -235,3 +249,7 @@ ALTER TABLE "TransactionItem"
 ALTER TABLE "TransactionItem"
     ADD CONSTRAINT "TransactionItem_productId_fkey"
     FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE "SaasSubscription"
+    ADD CONSTRAINT "SaasSubscription_userId_fkey"
+    FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
