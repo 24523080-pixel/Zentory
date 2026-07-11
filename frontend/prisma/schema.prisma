@@ -209,3 +209,14 @@ model TransactionItem {
   qty           Int
   hargaSatuan   Float
 }
+
+model SaasSubscription {
+  id         String   @id @default(cuid())
+  tenantName String
+  email      String
+  tier       String
+  status     String   @default("Active")
+  startDate  DateTime @default(now())
+  mrr        Int      @default(0)
+  createdAt  DateTime @default(now())
+}
