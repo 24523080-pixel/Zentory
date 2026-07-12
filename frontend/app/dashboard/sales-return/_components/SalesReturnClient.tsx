@@ -170,7 +170,7 @@ function NewReturnModal({
                 <thead className="bg-muted/50 text-muted-foreground">
                   <tr>
                     <th className="rounded-tl-xl px-3 py-2.5 font-medium">Nama Produk</th>
-                    <th className="px-3 py-2.5 font-medium w-16">Qty</th>
+                    <th className="px-3 py-2.5 font-medium w-24">Qty</th>
                     <th className="px-3 py-2.5 font-medium w-28">Harga Satuan</th>
                     <th className="px-3 py-2.5 font-medium w-36">Alasan</th>
                     <th className="px-3 py-2.5 font-medium">Catatan</th>
@@ -221,7 +221,7 @@ function NewReturnModal({
                         </td>
                         <td className="px-2 py-2">
                           <Input type="number" min={1} value={row.qty} onChange={(e) => updateRow(idx, 'qty', e.target.value)}
-                            className="h-8 text-xs text-right" />
+                            className="h-8 w-full text-xs text-right" />
                         </td>
                         {/* Harga — read-only saat locked */}
                         <td className="px-2 py-2">
